@@ -6,6 +6,7 @@ use App\Models\Developer;
 use App\Models\DeveloperAlias;
 use App\Support\DeveloperKey;
 use App\Support\Money;
+use Illuminate\Support\Arr;
 
 /*
  * Who the firm works for: the developers named on billing projects plus the
@@ -138,10 +139,10 @@ class DeveloperIndex
      */
     protected function summarize(array $row): array
     {
-        $summaries = collect($row['jobs'])->map(fn (string $jobNumber) => $this->engine->jobSummary($jobNumber));
+        $summaries = collect(Arr::array($row, 'jobs'))->map(fn (string $jobNumber) => $this->engine->jobSummary($jobNumber));
         $contracts = $summaries->pluck('contract')->map(fn (string $contract) => (float) $contract)->filter();
 
-        $lastHours = collect($row['jobs'])
+        $lastHours = collect(Arr::array($row, 'jobs'))
             ->map(fn (string $jobNumber) => array_key_last($this->engine->hoursByPeriod($jobNumber)))
             ->filter();
 
@@ -150,8 +151,8 @@ class DeveloperIndex
 
         return [
             ...$row,
-            'sources' => array_keys($row['sources']),
-            'aka' => collect($row['aka'])->map(fn (string $name, string $key) => ['key' => $key, 'name' => $name])->sortBy(fn (array $aka) => mb_strtolower($aka['name']))->values()->all(),
+            'sources' => array_keys(Arr::array($row, 'sources')),
+            'aka' => collect(Arr::array($row, 'aka'))->map(fn (string $name, string $key) => ['key' => $key, 'name' => $name])->sortBy(fn (array $aka) => mb_strtolower($aka['name']))->values()->all(),
             'summaries' => $summaries->all(),
             'jobCount' => $summaries->count(),
             'liveCount' => $summaries->where('active', true)->count(),

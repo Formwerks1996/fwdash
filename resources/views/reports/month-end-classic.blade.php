@@ -126,7 +126,9 @@
             </thead>
             <tbody>
                 @foreach($rows as $row)
-                    @php($fill = $rateFill($row['rateLive']))
+                    @php
+                        $fill = $rateFill($row['rateLive']);
+                    @endphp
                     <tr>
                         <td>{{ $row['developer'] }}</td>
                         <td>{{ $row['jobName'] }}</td>
@@ -150,7 +152,9 @@
                 @endforeach
             </tbody>
             <tfoot>
-                @php($fill = $rateFill($totalRate))
+                @php
+                    $fill = $rateFill($totalRate);
+                @endphp
                 <tr>
                     <td>Grand Total</td>
                     <td></td>

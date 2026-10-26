@@ -141,7 +141,9 @@ class OutreachIndex extends Component
     /** @return array<string, string> type label => colour */
     public static function typeColors(): array
     {
-        return collect(json_decode((string) AppSetting::find('outreach.types')?->value, true) ?: [])
+        $types = json_decode((string) AppSetting::find('outreach.types')?->value, true);
+
+        return collect(is_array($types) ? $types : [])
             ->pluck('color', 'label')
             ->all();
     }

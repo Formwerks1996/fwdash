@@ -31,7 +31,9 @@
                         stroke-dasharray="{{ round($drawn, 3) }} {{ round($circumference - $drawn, 3) }}" stroke-dashoffset="{{ round(-$offset, 3) }}">
                         <title>{{ $slice['label'] }}: {{ $format($slice['value']) }}</title>
                     </circle>
-                    @php($offset += $length)
+                    @php
+                        $offset += $length;
+                    @endphp
                 @endforeach
             </svg>
             <div class="me-ring-mid pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center leading-tight">

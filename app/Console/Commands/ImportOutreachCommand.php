@@ -6,6 +6,7 @@ use App\Models\AppSetting;
 use App\Models\OutreachProject;
 use App\Models\OutreachProspect;
 use Illuminate\Console\Command;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
 /*
@@ -31,7 +32,7 @@ class ImportOutreachCommand extends Command
         }
 
         $thumbs = $this->option('thumbs') ?: dirname($path).'/outreach-thumbs';
-        $rows = collect($data['rows']);
+        $rows = collect(Arr::array($data, 'rows'));
 
         $this->info("Importing {$rows->count()} prospects...");
 

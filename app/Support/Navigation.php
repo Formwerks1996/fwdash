@@ -14,7 +14,7 @@ class Navigation
      */
     public static function for(?User $user): array
     {
-        return collect(config('navigation'))
+        return collect(config()->array('navigation'))
             ->map(fn (array $pages) => array_values(array_filter(
                 $pages,
                 fn (array $page) => Route::has($page['route'])

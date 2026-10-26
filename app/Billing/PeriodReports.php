@@ -44,7 +44,7 @@ class PeriodReports
         ['key' => 'a4', 'label' => 'No payment yet', 'color' => '#b6bbc1'],
     ];
 
-    /** @var array<int, array<string, mixed>> */
+    /** @var array<int, array{months: array<int, array<string, mixed>>, lastEntered: ?string, runRate: float}> */
     protected array $seriesCache = [];
 
     public function __construct(protected BillingEngine $engine) {}
@@ -149,47 +149,59 @@ class PeriodReports
     /**
      * One row per job, as at the period: the partners' report.
      *
+     * @param  array{jobs: array<int, array<string, mixed>>}  $report
      * @return Collection<int, array<string, mixed>>
      */
     public function monthEndRows(string $period, array $report): Collection
     {
-        $billedThisMonth = collect($report['jobs'])->mapWithKeys(fn (array $block) => [$block['jobNumber'] => (float) $block['totals']['billed']]);
-        $periodEnd = CarbonImmutable::parse($period);
+        $billedThisMonth = [];
+
+        foreach ($report['jobs'] as $block) {
+            $billedThisMonth[$block['jobNumber']] = (float) $block['totals']['billed'];
+        }
 
         return collect($this->engine->allSummaries($period))
-            ->map(function (array $summary) use ($billedThisMonth, $period, $periodEnd) {
-                $hoursMonth = $this->engine->hoursIn($summary['jobNumber'], $period);
-
-                return [
-                    'jobNumber' => $summary['jobNumber'],
-                    'jobName' => $summary['jobName'],
-                    'developer' => $summary['developer'],
-                    'division' => $summary['division'],
-                    'active' => $summary['active'],
-                    'onReport' => $billedThisMonth->has($summary['jobNumber']),
-                    'billedMonth' => $billedThisMonth[$summary['jobNumber']] ?? 0.0,
-                    'hoursMonth' => $hoursMonth ?: null,
-                    'hoursLive' => $summary['hoursTotal'],
-                    'rateLive' => $summary['ratePerHour'],
-                    'contract' => (float) $summary['contract'],
-                    'billed' => (float) $summary['billed'],
-                    'hourlyBilled' => (float) $summary['hourlyBilled'],
-                    'billedPct' => $summary['billedPct'],
-                    'balance' => (float) $summary['balance'],
-                    'balanceDesign' => (float) $summary['balanceDesign'],
-                    'balanceCA' => (float) $summary['balanceCA'],
-                    'consultantTotal' => (float) $summary['consultantTotal'],
-                    'hoursTotal' => $summary['hoursTotal'],
-                    'paymentsTotal' => (float) $summary['paymentsTotal'],
-                    'lastPaymentDate' => $summary['lastPaymentDate'],
-                    'lastPaymentAmount' => $summary['lastPaymentAmount'] === null ? null : (float) $summary['lastPaymentAmount'],
-                    'outstanding' => (float) $summary['outstanding'],
-                    'daysSincePayment' => $summary['lastPaymentDate']
-                        ? (int) round(CarbonImmutable::parse($summary['lastPaymentDate'])->diffInDays($periodEnd))
-                        : null,
-                ];
-            })
+            ->map(fn (array $summary) => $this->monthEndRow($summary, $period, $billedThisMonth))
             ->values();
+    }
+
+    /**
+     * @param  array<string, mixed>  $summary
+     * @param  array<string, float>  $billedThisMonth
+     * @return array<string, mixed>
+     */
+    protected function monthEndRow(array $summary, string $period, array $billedThisMonth): array
+    {
+        $hoursMonth = $this->engine->hoursIn($summary['jobNumber'], $period);
+
+        return [
+            'jobNumber' => $summary['jobNumber'],
+            'jobName' => $summary['jobName'],
+            'developer' => $summary['developer'],
+            'division' => $summary['division'],
+            'active' => $summary['active'],
+            'onReport' => array_key_exists($summary['jobNumber'], $billedThisMonth),
+            'billedMonth' => $billedThisMonth[$summary['jobNumber']] ?? 0.0,
+            'hoursMonth' => $hoursMonth ?: null,
+            'hoursLive' => $summary['hoursTotal'],
+            'rateLive' => $summary['ratePerHour'],
+            'contract' => (float) $summary['contract'],
+            'billed' => (float) $summary['billed'],
+            'hourlyBilled' => (float) $summary['hourlyBilled'],
+            'billedPct' => $summary['billedPct'],
+            'balance' => (float) $summary['balance'],
+            'balanceDesign' => (float) $summary['balanceDesign'],
+            'balanceCA' => (float) $summary['balanceCA'],
+            'consultantTotal' => (float) $summary['consultantTotal'],
+            'hoursTotal' => $summary['hoursTotal'],
+            'paymentsTotal' => (float) $summary['paymentsTotal'],
+            'lastPaymentDate' => $summary['lastPaymentDate'],
+            'lastPaymentAmount' => $summary['lastPaymentAmount'] === null ? null : (float) $summary['lastPaymentAmount'],
+            'outstanding' => (float) $summary['outstanding'],
+            'daysSincePayment' => $summary['lastPaymentDate']
+                ? (int) round(CarbonImmutable::parse($summary['lastPaymentDate'])->diffInDays(CarbonImmutable::parse($period)))
+                : null,
+        ];
     }
 
     /**

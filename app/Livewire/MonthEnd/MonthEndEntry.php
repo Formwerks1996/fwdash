@@ -20,6 +20,7 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
+use stdClass;
 
 /*
  * The screen that replaces the Excel month-end routine: about twenty phase
@@ -29,7 +30,7 @@ use Livewire\Component;
 /**
  * @property-read array{period: string, status: string, billed: string, outstandingCount: int, jobs: array<int, array<string, mixed>>} $worklist
  * @property-read array<string, mixed>|null $grid
- * @property-read Collection<int, object> $staff
+ * @property-read Collection<int, stdClass> $staff
  * @property-read Collection<int, string> $consultants
  */
 #[Title('Month end entry')]
@@ -193,8 +194,9 @@ class MonthEndEntry extends Component
             'rate' => $line->rate === null ? null : (string) $line->rate,
             'amount' => $line->amount === null ? null : (string) $line->amount,
             'note' => $line->note,
-            $field => $value,
         ];
+
+        $attributes[$field] = $value;
 
         $saveLine->execute((string) $this->period, (string) $this->jobNumber, $attributes, $line);
 
@@ -303,7 +305,7 @@ class MonthEndEntry extends Component
         return app(BillingEngine::class)->periodGrid($this->period, $this->jobNumber);
     }
 
-    /** @return Collection<int, object> */
+    /** @return Collection<int, stdClass> */
     #[Computed]
     public function staff(): Collection
     {

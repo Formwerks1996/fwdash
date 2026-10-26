@@ -9,6 +9,7 @@ use App\Actions\Billing\SetPhaseFeeAction;
 use App\Actions\Team\AssignProjectAction;
 use App\Billing\BillingEngine;
 use App\Enums\Permission;
+use App\Models\MonthEntry;
 use App\Models\Payment;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
@@ -129,6 +130,7 @@ class ProjectsShow extends Component
             $phase,
             pct: $field === 'pct' && $number !== null ? (string) ((float) $number / 100) : null,
             amount: $field === 'amount' ? $number : null,
+            note: MonthEntry::where(['period' => $period, 'job_number' => $this->jobNumber, 'phase_code' => $phase])->value('note'),
         );
 
         $this->refreshFigures();

@@ -12,7 +12,7 @@ return [
     'Firm health' => [
         ['route' => 'overview', 'icon' => 'ph-squares-four', 'label' => 'Overview', 'permission' => 'view financials', 'editable' => false,
             'help' => 'How the year is going: revenue billed by month against last year, fee still to bill, the realized rate and cash collected.'],
-        ['route' => 'month-end', 'icon' => 'ph-pencil-simple', 'label' => 'Month End', 'permission' => 'view financials', 'editable' => true,
+        ['route' => 'monthEnd', 'icon' => 'ph-pencil-simple', 'label' => 'Month End', 'permission' => 'view financials', 'editable' => true,
             'help' => 'Enter the month’s billing — phase percentages, CA draws and hourly lines — and close the month when it is invoiced.'],
         ['route' => 'invoicing', 'icon' => 'ph-receipt', 'label' => 'Invoicing', 'permission' => 'view financials', 'editable' => false,
             'help' => 'Every ongoing contract with what was billed this month, to date, and what is left. Download the monthly billing report from here.'],

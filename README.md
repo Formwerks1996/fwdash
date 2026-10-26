@@ -2,8 +2,9 @@
 
 The management dashboard, rebuilt on Laravel 13, Livewire 4 and Flux, following
 [Spatie's guidelines](https://github.com/spatie/guidelines-skills). It replaces
-the Python dashboard in `../Management Dashboard`, starting with Overview,
-Invoicing, Projects, Software and Hardware.
+the Python dashboard in `../Management Dashboard`: every page except Mosaic is
+ported. The sidebar and the Help page list both come from
+`config/navigation.php`.
 
 - **Sign-in:** Microsoft only (Socialite + Entra ID). Everyone starts as
   **Staff**; admins promote people on the **Users** page and get an email when
@@ -20,8 +21,8 @@ Invoicing, Projects, Software and Hardware.
 | Role | Can |
 | --- | --- |
 | Admin | Everything, including workbook uploads and user roles |
-| Manager | Overview, Invoicing, Projects; edit billing, software and hardware |
-| Staff | Software and Hardware, read only |
+| Manager | Firm health, Projects and Business development pages; edit billing, the team, pursuits and developers, software and hardware |
+| Staff | Software, Hardware, Team Lineup and Help, read only |
 
 Roles and permissions use `spatie/laravel-permission`. The mapping lives in
 `app/Enums/Role.php`; re-run `php artisan db:seed --class=RolesAndPermissionsSeeder`
@@ -115,9 +116,18 @@ Uploads are read and applied in a single request, because nothing written to
 disk on Vercel survives into the next one. The workbook must be under 4 MB
 (Vercel's request limit is 4.5 MB).
 
-## Not ported yet
+## Outreach list
 
-Month End entry, the Monthly Billing Report, Monthly Targets, Extras, Project
-Alerts, PM Desk, Team Lineup, Pipeline, Developers, Outreach and Help. Mosaic is
-left out: hours come from the workbook's Hours sheet, and "Paused" is set on the
-Projects page instead of Mosaic.
+The Outreach list holds third-party contact details, so it is never committed.
+Load it into the database from the old dashboard's `outreach.json` (thumbnails
+are read from `outreach-thumbs/` beside it unless `--thumbs` says otherwise):
+
+```bash
+php artisan outreach:import "../Management Dashboard/data/outreach.json"
+```
+
+## Not ported
+
+Mosaic is left out: hours come from the workbook's Hours sheet, and "Paused" is
+set on the Projects page instead of Mosaic. Monthly targets are not in the
+workbook, so they are kept only in the database.

@@ -216,7 +216,7 @@
                                         <td>
                                             <input
                                                 type="text"
-                                                class="cell-input w-[10rem] text-left"
+                                                class="cell-input w-[8rem] text-left"
                                                 value="{{ $row['note'] }}"
                                                 placeholder="—"
                                                 aria-label="{{ __(':phase note', ['phase' => $row['phase']]) }}"
@@ -288,7 +288,7 @@
                                             @endif
                                         </td>
                                         <td>
-                                            <input type="text" class="cell-input w-[12rem] text-left" value="{{ $line['note'] }}" placeholder="—" @disabled(! $editable)
+                                            <input type="text" class="cell-input w-[9rem] text-left" value="{{ $line['note'] }}" placeholder="—" @disabled(! $editable)
                                                 aria-label="{{ __('Note') }}" x-on:keydown.enter="$event.target.blur()" wire:change="updateLine({{ $line['id'] }}, 'note', $event.target.value)">
                                         </td>
                                         <td class="text-right">
@@ -313,13 +313,15 @@
                                         <td class="is-num"><input type="number" step="1" min="0" wire:model="newLine.rate" placeholder="{{ __('auto') }}" class="cell-input w-[5rem] border-[#e2e4e6]" aria-label="{{ __('Rate') }}" x-on:keydown.enter="$wire.addLine()"></td>
                                         <td class="is-num"><input type="number" step="0.01" wire:model="newLine.amount" placeholder="—" class="cell-input w-[6rem] border-[#e2e4e6]" aria-label="{{ __('Amount') }}" x-on:keydown.enter="$wire.addLine()"></td>
                                         <td class="is-num text-muted">—</td>
-                                        <td><input type="text" wire:model="newLine.note" placeholder="{{ __('note') }}" class="cell-input w-[12rem] border-[#e2e4e6] text-left" aria-label="{{ __('Note') }}" x-on:keydown.enter="$wire.addLine()"></td>
+                                        <td><input type="text" wire:model="newLine.note" placeholder="{{ __('note') }}" class="cell-input w-[9rem] border-[#e2e4e6] text-left" aria-label="{{ __('Note') }}" x-on:keydown.enter="$wire.addLine()"></td>
                                         <td class="text-right"><button type="button" class="btn py-1" wire:click="addLine">{{ __('Add') }}</button></td>
                                     </tr>
                                 @endif
                             </tbody>
                             <tfoot>
-                                @php($linesTotal = array_sum(array_map(fn ($line) => (float) $line['total'], $grid['hourLines'])))
+                                @php
+                                    $linesTotal = array_sum(array_map(fn ($line) => (float) $line['total'], $grid['hourLines']));
+                                @endphp
                                 <tr>
                                     <td colspan="4">
                                         {{ $grid['hourlyOverride'] !== null ? __('Billed as a flat figure (lines total :amount)', ['amount' => Format::money($linesTotal, 2)]) : __('Hourly billing') }}
@@ -371,7 +373,7 @@
                                 @if($canEdit)
                                     <tr class="bg-[#fafbfb]" wire:key="cf-new">
                                         <td>
-                                            <input type="text" list="consultant-names" wire:model="newFee.consultant" placeholder="{{ __('consultant') }}" class="cell-input w-[12rem] border-[#e2e4e6] text-left" aria-label="{{ __('Consultant') }}">
+                                            <input type="text" list="consultant-names" wire:model="newFee.consultant" placeholder="{{ __('consultant') }}" class="cell-input w-[9rem] border-[#e2e4e6] text-left" aria-label="{{ __('Consultant') }}">
                                             <datalist id="consultant-names">
                                                 @foreach($this->consultants as $name)
                                                     <option value="{{ $name }}"></option>
@@ -380,7 +382,7 @@
                                         </td>
                                         <td class="is-num"><input type="number" step="0.25" min="0" wire:model="newFee.hours" placeholder="{{ __('hrs') }}" class="cell-input w-[5.5rem] border-[#e2e4e6]" aria-label="{{ __('Hours') }}"></td>
                                         <td class="is-num"><input type="number" step="0.01" wire:model="newFee.total" placeholder="{{ __('auto') }}" class="cell-input w-[7rem] border-[#e2e4e6]" aria-label="{{ __('Total') }}"></td>
-                                        <td><input type="text" wire:model="newFee.note" placeholder="{{ __('note') }}" class="cell-input w-[12rem] border-[#e2e4e6] text-left" aria-label="{{ __('Note') }}"></td>
+                                        <td><input type="text" wire:model="newFee.note" placeholder="{{ __('note') }}" class="cell-input w-[9rem] border-[#e2e4e6] text-left" aria-label="{{ __('Note') }}"></td>
                                         <td class="text-right"><button type="button" class="btn py-1" wire:click="addConsultantFee">{{ __('Add') }}</button></td>
                                     </tr>
                                 @endif

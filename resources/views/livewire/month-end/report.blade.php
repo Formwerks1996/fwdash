@@ -68,7 +68,9 @@
                     · {{ Format::compact($f['ytd']) }} {{ __('year to date') }}
                 @endif
             </x-kpi>
-            @php($band = RateBand::classify($f['realized'], $f['hoursListed']))
+            @php
+                $band = RateBand::classify($f['realized'], $f['hoursListed']);
+            @endphp
             <x-kpi :label="__('Realized rate')" :value="$f['realized'] ? '$'.number_format($f['realized']).'<small>/hr</small>' : '—'" :band="$band && $band['reliable'] ? $band : null">
                 @if($band)
                     <span class="rate-chip" style="background: {{ $band['wash'] }}; color: {{ $band['text'] }}; border-color: {{ $band['border'] }}">{{ $band['label'] }}</span>
@@ -108,7 +110,9 @@
                     @include('reports.partials.ring', ['ring' => $ring, 'monthName' => $monthName])
                 @endforeach
             </div>
-            @php($billedSlices = collect($f['rings']['billed']['slices'])->keyBy('label'))
+            @php
+                $billedSlices = collect($f['rings']['billed']['slices'])->keyBy('label');
+            @endphp
             @if(! $billedSlices['Single family']['value'] && ! $billedSlices['Interior']['value'])
                 <p class="section-note mt-4"><i class="ph ph-info"></i> <b class="font-medium text-ink-2">{{ __('Single family and Interior bill nothing here') }}</b> — {{ __('no job billed this month carries either division.') }}</p>
             @endif

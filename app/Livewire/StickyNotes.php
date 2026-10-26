@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\StickyNote;
+use Illuminate\Contracts\Routing\UrlRoutable;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -39,7 +40,12 @@ class StickyNotes extends Component
 
         $this->target = (string) $route?->getName();
         $firstParameter = $route?->parameterNames()[0] ?? null;
-        $this->arg = $firstParameter === null ? null : (string) $route->parameter($firstParameter);
+        $value = $firstParameter === null ? null : $route->parameter($firstParameter);
+        $this->arg = match (true) {
+            $value instanceof UrlRoutable => (string) $value->getRouteKey(),
+            is_string($value) => $value,
+            default => null,
+        };
         $this->label = mb_substr((string) ($label ?? $this->target), 0, 160);
     }
 
