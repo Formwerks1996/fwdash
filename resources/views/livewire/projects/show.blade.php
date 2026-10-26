@@ -26,6 +26,31 @@
                     @if($s['lead']) <span class="chip">{{ __('Lead') }} {{ $s['lead'] }}</span> @endif
                     <span @class(['chip', 'is-on' => $s['active']])>{{ $s['active'] ? __('Active') : __('Inactive in billing') }}</span>
                 </div>
+
+                <div class="mt-3 flex flex-wrap items-center gap-2 text-sm text-ink-2">
+                    <span class="text-muted">{{ __('Assigned to') }}</span>
+                    @forelse($assigned as $name)
+                        <span class="chip">
+                            <a href="{{ route('pm-desk', $name) }}" class="hover:text-navy" wire:navigate>{{ $name }}</a>
+                            @if($canAssign)
+                                <button type="button" class="hover:text-danger" wire:click="release(@js($name))" title="{{ __('Take :name off this project', ['name' => $name]) }}"><i class="ph ph-x"></i></button>
+                            @endif
+                        </span>
+                    @empty
+                        <span class="text-muted">—</span>
+                    @endforelse
+                    @if($canAssign && $team->diff($assigned)->isNotEmpty())
+                        <flux:dropdown>
+                            <button type="button" class="btn-secondary py-0.5"><i class="ph ph-plus"></i>{{ __('Assign') }}</button>
+                            <flux:menu class="max-h-72 overflow-y-auto">
+                                @foreach($team->diff($assigned) as $name)
+                                    <flux:menu.item wire:click="assign(@js($name))">{{ $name }}</flux:menu.item>
+                                @endforeach
+                            </flux:menu>
+                        </flux:dropdown>
+                    @endif
+                    @error('assignment') <span class="text-danger">{{ $message }}</span> @enderror
+                </div>
             </div>
             @if($canEdit && ! $editingDetails)
                 <button type="button" class="btn-secondary" wire:click="editDetails"><i class="ph ph-pencil-simple"></i>{{ __('Details') }}</button>

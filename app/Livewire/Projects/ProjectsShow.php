@@ -6,10 +6,13 @@ use App\Actions\Billing\SaveMonthEntryAction;
 use App\Actions\Billing\SavePaymentAction;
 use App\Actions\Billing\SaveProjectAction;
 use App\Actions\Billing\SetPhaseFeeAction;
+use App\Actions\Team\AssignProjectAction;
 use App\Billing\BillingEngine;
 use App\Enums\Permission;
 use App\Models\Payment;
 use App\Models\Project;
+use App\Models\ProjectAssignment;
+use App\Models\TeamMember;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Livewire\Attributes\Computed;
@@ -169,6 +172,20 @@ class ProjectsShow extends Component
         $this->refreshFigures();
     }
 
+    public function assign(string $memberName, AssignProjectAction $assignProject): void
+    {
+        $this->authorize(Permission::EditTeam->value);
+
+        $assignProject->execute($this->jobNumber, $memberName);
+    }
+
+    public function release(string $memberName, AssignProjectAction $assignProject): void
+    {
+        $this->authorize(Permission::EditTeam->value);
+
+        $assignProject->release($this->jobNumber, $memberName);
+    }
+
     public function deletePayment(int $paymentId, SavePaymentAction $savePayment): void
     {
         $this->authorize(Permission::EditBilling->value);
@@ -183,6 +200,9 @@ class ProjectsShow extends Component
         return view('livewire.projects.show', [
             'payments' => Payment::where('job_number', $this->jobNumber)->orderByDesc('paid_on')->orderByDesc('id')->get(),
             'canEdit' => auth()->user()->can(Permission::EditBilling->value),
+            'canAssign' => auth()->user()->can(Permission::EditTeam->value),
+            'assigned' => ProjectAssignment::where('job_number', $this->jobNumber)->orderBy('member_name')->pluck('member_name'),
+            'team' => TeamMember::active()->orderBy('name')->pluck('name'),
             'chart' => $this->chartData(),
         ])->title($this->summary['jobName']);
     }

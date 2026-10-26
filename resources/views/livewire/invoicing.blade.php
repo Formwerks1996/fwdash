@@ -18,16 +18,23 @@
             </p>
         </div>
 
-        <label class="flex items-center gap-2 text-xs text-muted">
-            {{ __('Period') }}
-            <select wire:model.live="period" class="select">
-                @foreach($periods as $option)
-                    <option value="{{ $option }}">
-                        {{ Format::month($option) }}@if($engine->periodStatus($option) === 'closed') ({{ __('closed') }})@endif
-                    </option>
-                @endforeach
-            </select>
-        </label>
+        <div class="flex flex-wrap items-center gap-3">
+            <label class="flex items-center gap-2 text-xs text-muted">
+                {{ __('Period') }}
+                <select wire:model.live="period" class="select">
+                    @foreach($periods as $option)
+                        <option value="{{ $option }}">
+                            {{ Format::month($option) }}@if($engine->periodStatus($option) === 'closed') ({{ __('closed') }})@endif
+                        </option>
+                    @endforeach
+                </select>
+            </label>
+            @if($period)
+                <a href="{{ route('reports.billing', $period) }}" target="_blank" class="btn-secondary" title="{{ __('The month\'s billing, job by job. Print it or save it as a PDF.') }}">
+                    <i class="ph ph-file-text"></i>{{ __('Billing report') }}
+                </a>
+            @endif
+        </div>
     </div>
 
     <div class="kpis grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">

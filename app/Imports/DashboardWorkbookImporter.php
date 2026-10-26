@@ -53,7 +53,11 @@ class DashboardWorkbookImporter
     {
         $this->read();
 
-        DB::transaction(function () {
+        $businessDevelopment = new BusinessDevelopmentSheets($this->path);
+        $businessDevelopment->read();
+        $businessDevelopmentCounts = [];
+
+        DB::transaction(function () use ($businessDevelopment, &$businessDevelopmentCounts) {
             $preservedNotes = $this->preservedNotes();
 
             foreach (self::ReplacedTables as $table) {
@@ -67,11 +71,13 @@ class DashboardWorkbookImporter
             }
 
             $this->restoreNotes($preservedNotes);
+
+            $businessDevelopmentCounts = $businessDevelopment->apply();
         });
 
         return new WorkbookImportResult(
-            counts: collect($this->rows)->map(fn (array $rows) => count($rows))->all(),
-            warnings: $this->warnings,
+            counts: [...collect($this->rows)->map(fn (array $rows) => count($rows))->all(), ...$businessDevelopmentCounts],
+            warnings: [...$this->warnings, ...$businessDevelopment->warnings],
         );
     }
 

@@ -50,9 +50,28 @@
                     </div>
                 </header>
 
-                <main class="mx-auto w-full max-w-[1480px] flex-1 px-4 py-8 sm:px-8 sm:py-12">
+                @auth
+                    <header class="sticky top-0 z-20 hidden h-[72px] items-center justify-between gap-4 border-b border-line bg-white px-8 lg:flex print:hidden">
+                        @include('partials.quick-jump')
+                        @can('edit business development')
+                            <button type="button" class="btn" x-data x-on:click="Livewire.dispatch('open-new-pursuit')">
+                                <i class="ph ph-plus"></i>{{ __('New Pursuit') }}
+                            </button>
+                        @endcan
+                    </header>
+                @endauth
+
+                <main class="relative mx-auto w-full max-w-[1480px] flex-1 px-4 py-8 sm:px-8 sm:py-12">
                     {{ $slot }}
+
+                    @auth
+                        <livewire:sticky-notes :label="$title ?? null" :key="'notes-'.request()->path()" />
+                    @endauth
                 </main>
+
+                @can('edit business development')
+                    <livewire:business-development.new-pursuit />
+                @endcan
             </div>
         </div>
 

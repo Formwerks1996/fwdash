@@ -14,7 +14,7 @@
             <p class="page-subtitle">{{ __('What the firm pays for software, as billed.') }}</p>
         </div>
         @if($canEdit)
-            <button type="button" class="btn" wire:click="$toggle('adding')"><i class="ph ph-plus"></i>{{ __('Add') }}</button>
+            <button type="button" class="btn" x-data x-on:click="$wire.adding = true"><i class="ph ph-plus"></i>{{ __('Add') }}</button>
         @endif
     </div>
 
@@ -71,56 +71,55 @@
         </div>
     @endif
 
-    @if($adding)
-        <form wire:submit="save" class="card grid gap-4 border-t-2 border-t-gold sm:grid-cols-2 xl:grid-cols-4">
-            <div class="xl:col-span-2">
-                <label class="field-label">{{ __('Software') }}</label>
-                <input wire:model="form.name" class="field-input">
+    <x-modal wire:model="adding" :title="__('Add software')" max-width="560px">
+        <form wire:submit="save" class="grid gap-4 sm:grid-cols-2">
+            <div class="sm:col-span-2">
+                <label class="field-label" for="sw-name">{{ __('Software') }}</label>
+                <input id="sw-name" wire:model="form.name" class="field-input">
                 @error('form.name') <p class="error-note mt-1">{{ $message }}</p> @enderror
             </div>
             <div>
-                <label class="field-label">{{ __('Division') }}</label>
-                <input wire:model="form.division" class="field-input" list="sw-divisions">
+                <label class="field-label" for="sw-division">{{ __('Division') }}</label>
+                <input id="sw-division" wire:model="form.division" class="field-input" list="sw-divisions">
                 <datalist id="sw-divisions">
                     @foreach($divisions as $option) <option value="{{ $option }}"> @endforeach
                 </datalist>
             </div>
             <div>
-                <label class="field-label">{{ __('Price') }}</label>
-                <input type="number" step="0.01" min="0" wire:model="form.price" class="field-input">
+                <label class="field-label" for="sw-price">{{ __('Price') }}</label>
+                <input id="sw-price" type="number" step="0.01" min="0" wire:model="form.price" class="field-input">
+                @error('form.price') <p class="error-note mt-1">{{ $message }}</p> @enderror
             </div>
             <div>
-                <label class="field-label">{{ __('Currency') }}</label>
-                <select wire:model="form.currency" class="field-input">
+                <label class="field-label" for="sw-currency">{{ __('Currency') }}</label>
+                <select id="sw-currency" wire:model="form.currency" class="field-input">
                     @foreach(SoftwareModel::Currencies as $currency) <option>{{ $currency }}</option> @endforeach
                 </select>
             </div>
             <div>
-                <label class="field-label">{{ __('Cycle') }}</label>
-                <select wire:model="form.cycle" class="field-input">
+                <label class="field-label" for="sw-cycle">{{ __('Cycle') }}</label>
+                <select id="sw-cycle" wire:model="form.cycle" class="field-input">
                     @foreach(SoftwareModel::Cycles as $cycle) <option>{{ $cycle }}</option> @endforeach
                 </select>
             </div>
-            <div class="grid grid-cols-2 gap-2">
-                <div>
-                    <label class="field-label">{{ __('Seats used') }}</label>
-                    <input type="number" min="0" wire:model="form.seats_used" class="field-input">
-                </div>
-                <div>
-                    <label class="field-label">{{ __('Owned') }}</label>
-                    <input type="number" min="0" wire:model="form.seats" class="field-input">
-                </div>
+            <div>
+                <label class="field-label" for="sw-used">{{ __('Seats used') }}</label>
+                <input id="sw-used" type="number" min="0" wire:model="form.seats_used" class="field-input">
             </div>
             <div>
-                <label class="field-label">{{ __('Description') }}</label>
-                <input wire:model="form.description" class="field-input">
+                <label class="field-label" for="sw-seats">{{ __('Seats owned') }}</label>
+                <input id="sw-seats" type="number" min="0" wire:model="form.seats" class="field-input">
             </div>
-            <div class="flex justify-end gap-2 sm:col-span-2 xl:col-span-4">
-                <button type="button" class="btn-secondary" wire:click="$set('adding', false)">{{ __('Cancel') }}</button>
-                <button type="submit" class="btn">{{ __('Save') }}</button>
+            <div class="sm:col-span-2">
+                <label class="field-label" for="sw-description">{{ __('Description') }}</label>
+                <input id="sw-description" wire:model="form.description" class="field-input">
+            </div>
+            <div class="mt-2 flex justify-end gap-2 sm:col-span-2">
+                <button type="button" class="btn-secondary" x-on:click="$wire.adding = false">{{ __('Cancel') }}</button>
+                <button type="submit" class="btn" wire:loading.attr="disabled" wire:target="save">{{ __('Add software') }}</button>
             </div>
         </form>
-    @endif
+    </x-modal>
 
     <div class="card p-0">
         <div class="toolbar px-6 pt-5 pb-4">

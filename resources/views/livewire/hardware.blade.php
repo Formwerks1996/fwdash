@@ -145,13 +145,11 @@
         </div>
     </div>
 
-    @if($editorOpen)
-        <div class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-navy/30 p-4 sm:p-10" wire:click.self="$set('editorOpen', false)" x-on:keydown.escape.window="$wire.set('editorOpen', false)">
-            <form wire:submit="save" class="card w-full max-w-[760px] border-t-2 border-t-gold">
-                <h2 class="section-title text-xl">{{ $editingId ? ($form['cid'] ?: __('Computer')) : __('Add computer') }}</h2>
+    <x-modal wire:model="editorOpen" :title="$editingId ? ($form['cid'] ?? null ?: __('Computer')) : __('Add computer')" max-width="760px">
+        <form wire:submit="save">
 
                 @foreach($fieldsets as $legend => $fields)
-                    <fieldset class="mt-6">
+                    <fieldset @class(['mt-6' => ! $loop->first])>
                         <legend class="kpi-label mb-3">{{ $legend }}</legend>
                         <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                             @foreach($fields as $field => $label)
@@ -189,11 +187,10 @@
                         @endif
                     </div>
                     <div class="flex gap-2">
-                        <button type="button" class="btn-secondary" wire:click="$set('editorOpen', false)">{{ __('Cancel') }}</button>
+                        <button type="button" class="btn-secondary" x-on:click="$wire.editorOpen = false">{{ __('Cancel') }}</button>
                         <button type="submit" class="btn">{{ $editingId ? __('Save changes') : __('Add computer') }}</button>
                     </div>
                 </div>
-            </form>
-        </div>
-    @endif
+        </form>
+    </x-modal>
 </div>

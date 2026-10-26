@@ -62,6 +62,9 @@ class BillingEngine
     /** @var array<string, array<string, mixed>> */
     protected array $summaryCache = [];
 
+    /** @var array<string, array<string, mixed>> keyed "period|job|phase" */
+    protected array $entryIndex = [];
+
     public function __construct()
     {
         $this->load();
@@ -101,6 +104,14 @@ class BillingEngine
             ->all();
 
         $this->entries = $this->groupByJob(DB::table('month_entries')->orderBy('period')->get());
+
+        $this->entryIndex = [];
+
+        foreach ($this->entries as $jobNumber => $entries) {
+            foreach ($entries as $entry) {
+                $this->entryIndex["{$entry['period']}|{$jobNumber}|{$entry['phase_code']}"] = $entry;
+            }
+        }
         $this->hourLines = $this->groupByJob(DB::table('hour_lines')->orderBy('id')->get());
         $this->payments = $this->groupByJob(DB::table('payments')->orderBy('paid_on')->orderBy('id')->get(), 'paid_on');
         $this->consultants = $this->groupByJob(DB::table('consultant_fees')->orderBy('period')->orderBy('id')->get());
@@ -650,6 +661,424 @@ class BillingEngine
         }
 
         return $billed;
+    }
+
+    /** @return array<string, mixed>|null */
+    public function entryAt(string $period, string $jobNumber, string $phase): ?array
+    {
+        return $this->entryIndex["{$period}|{$jobNumber}|{$phase}"] ?? null;
+    }
+
+    /**
+     * Job numbers ordered by job name, case-insensitively, so every list sorts
+     * the same way whichever database collation loaded them.
+     *
+     * @return array<int, string>
+     */
+    public function jobNumbersByName(): array
+    {
+        $jobNumbers = array_map('strval', array_keys($this->jobs));
+
+        usort($jobNumbers, fn (string $left, string $right) => strcasecmp(
+            (string) ($this->jobs[$left]['job_name'] ?? $left),
+            (string) ($this->jobs[$right]['job_name'] ?? $right),
+        ));
+
+        return $jobNumbers;
+    }
+
+    /**
+     * Jobs with anything billed in the period: the Billing Setup sheet's "Report = Y".
+     *
+     * @return array<int, string>
+     */
+    public function periodJobs(string $period): array
+    {
+        return array_values(array_filter(
+            $this->jobNumbersByName(),
+            fn (string $jobNumber) => ! Money::isZero($this->jobPeriodTotals($jobNumber, $period)['billed']),
+        ));
+    }
+
+    /**
+     * The jobs to work through at month end: time logged this month, anything
+     * already entered, or a CA monthly draw due on an active job.
+     *
+     * @return array{period: string, status: string, billed: string, outstandingCount: int, jobs: array<int, array<string, mixed>>}
+     */
+    public function worklist(string $period): array
+    {
+        $withHours = [];
+
+        foreach ($this->hours as $jobNumber => $rows) {
+            foreach ($rows as $row) {
+                if ($row['period'] === $period && $row['source'] !== 'prior') {
+                    $withHours[$jobNumber] = Money::add($withHours[$jobNumber] ?? '0', $row['hours']);
+                }
+            }
+        }
+
+        $entered = [];
+
+        foreach ($this->entries as $jobNumber => $entries) {
+            foreach ($entries as $entry) {
+                if ($entry['period'] === $period && ! Money::isZero($this->entryBilled($entry))) {
+                    $entered[$jobNumber] = true;
+                }
+            }
+        }
+
+        foreach ($this->hourLines as $jobNumber => $lines) {
+            foreach ($lines as $line) {
+                if ($line['period'] === $period) {
+                    $entered[$jobNumber] = true;
+                }
+            }
+        }
+
+        $caDue = [];
+
+        foreach ($this->jobs as $jobNumber => $job) {
+            $caFee = $this->fees[$jobNumber][Phase::Ca->value] ?? null;
+
+            if ($job['active'] && $job['ca_per_month'] && ! Money::isZero($job['ca_per_month']) && $caFee !== null && ! Money::isZero($caFee)) {
+                $caDue[$jobNumber] = true;
+            }
+        }
+
+        $rows = [];
+
+        foreach ($this->jobNumbersByName() as $jobNumber) {
+            if (! isset($withHours[$jobNumber]) && ! isset($entered[$jobNumber]) && ! isset($caDue[$jobNumber])) {
+                continue;
+            }
+
+            $job = $this->jobs[$jobNumber];
+            $totals = $this->jobPeriodTotals($jobNumber, $period);
+
+            $rows[] = [
+                'jobNumber' => $jobNumber,
+                'jobName' => $job['job_name'],
+                'developer' => $job['developer'],
+                'division' => $job['division'],
+                'lead' => $job['project_lead'],
+                'active' => (bool) $job['active'],
+                'caPerMonth' => $job['ca_per_month'],
+                'hoursLogged' => round(Money::toFloat($withHours[$jobNumber] ?? 0), 2),
+                'reasons' => array_values(array_filter([
+                    isset($withHours[$jobNumber]) ? 'hours logged' : null,
+                    isset($entered[$jobNumber]) ? 'already entered' : null,
+                    isset($caDue[$jobNumber]) ? 'CA draw due' : null,
+                ])),
+                'done' => ! Money::isZero($totals['billed']),
+                ...$totals,
+            ];
+        }
+
+        return [
+            'period' => $period,
+            'status' => $this->periodStatus($period),
+            'billed' => Money::round(Money::sum(array_column($rows, 'billed'))),
+            'outstandingCount' => count(array_filter($rows, fn (array $row) => ! $row['done'])),
+            'jobs' => $rows,
+        ];
+    }
+
+    /**
+     * One job-month: all eleven phase rows, the hour lines and the totals.
+     *
+     * @return array<string, mixed>
+     */
+    public function periodGrid(string $period, string $jobNumber): array
+    {
+        $phases = [];
+
+        foreach (Phase::codes() as $phase) {
+            $entry = $this->entryAt($period, $jobNumber, $phase);
+            $fee = $this->phaseFee($jobNumber, $phase, $entry);
+            $before = $this->phaseBilledBefore($jobNumber, $phase, $period);
+
+            $phases[] = [
+                'phase' => $phase,
+                'fee' => $fee,
+                'feeNote' => $this->feeNotes[$jobNumber][$phase] ?? null,
+                'billedBefore' => $before,
+                'completionBefore' => $fee !== null && ! Money::isZero($fee) ? Money::div($before, $fee) : null,
+                'pctThisMonth' => $entry['pct_complete'] ?? null,
+                'amountThisMonth' => $entry['amount'] ?? null,
+                'basis' => $this->entryBasis($entry),
+                'billedThisMonth' => $entry ? $this->entryBilled($entry) : '0.00',
+                'note' => $entry['note'] ?? null,
+            ];
+        }
+
+        $lines = [];
+
+        foreach ($this->hourLines[$jobNumber] ?? [] as $line) {
+            if ($line['period'] !== $period) {
+                continue;
+            }
+
+            [$resolved, $source] = $this->resolveRate($jobNumber, (string) $line['staff']);
+
+            $lines[] = [
+                'id' => (int) $line['id'],
+                'staff' => $line['staff'],
+                'hours' => $line['hours'],
+                'rate' => $line['rate'],
+                'amount' => $line['amount'],
+                'rateSource' => $line['rate_source'],
+                'resolvedRate' => $resolved,
+                'resolvedRateSource' => $source,
+                'total' => $this->lineTotal($line),
+                'note' => $line['note'],
+            ];
+        }
+
+        $job = $this->jobs[$jobNumber] ?? [];
+
+        return [
+            'jobNumber' => $jobNumber,
+            'jobName' => $job['job_name'] ?? $jobNumber,
+            'developer' => $job['developer'] ?? null,
+            'division' => $job['division'] ?? null,
+            'lead' => $job['project_lead'] ?? null,
+            'caPerMonth' => $job['ca_per_month'] ?? null,
+            'phases' => $phases,
+            'hourLines' => $lines,
+            'hourlyOverride' => $this->hourlyOverride($jobNumber, $period),
+            'totals' => $this->jobPeriodTotals($jobNumber, $period),
+        ];
+    }
+
+    /**
+     * The Monthly Billing Report: one block per job billed. Total Extras is a
+     * subset of the month's total, never an addition to it.
+     *
+     * @return array{period: string, status: string, jobCount: int, totalThisMonth: string, totalExtras: string, totalPhaseBilling: string, hoursThisMonth: float, jobs: array<int, array<string, mixed>>}
+     */
+    public function periodReport(string $period): array
+    {
+        $blocks = array_map(fn (string $jobNumber) => $this->periodGrid($period, $jobNumber), $this->periodJobs($period));
+
+        $total = Money::round(Money::sum(array_map(fn (array $block) => $block['totals']['billed'], $blocks)));
+        $hourly = Money::round(Money::sum(array_map(fn (array $block) => $block['totals']['hourlyBilled'], $blocks)));
+
+        $hours = '0';
+
+        foreach (array_keys($this->hours) as $jobNumber) {
+            $hours = Money::add($hours, $this->hoursIn((string) $jobNumber, $period));
+        }
+
+        return [
+            'period' => $period,
+            'status' => $this->periodStatus($period),
+            'jobCount' => count($blocks),
+            'totalThisMonth' => $total,
+            'totalExtras' => $hourly,
+            'totalPhaseBilling' => Money::round(Money::sub($total, $hourly)),
+            'hoursThisMonth' => round(Money::toFloat($hours), 2),
+            'jobs' => $blocks,
+        ];
+    }
+
+    /**
+     * Hourly billing ("Extras") month by month, from the billing lines alone.
+     *
+     * Hours are what the staff lines say was worked; linesTotal is what they bill
+     * at their stored rates; billed is what was invoiced (an override wins). The
+     * rate divides what the lines with hours bill by those hours, so flat-fee and
+     * capped months never read as a rate nobody charged.
+     *
+     * @return array{months: array<int, array<string, mixed>>, jobMonths: array<int, array<string, mixed>>, personMonths: array<int, array<string, mixed>>, lines: array<int, array<string, mixed>>, jobs: array<string, array<string, mixed>>}
+     */
+    public function extras(): array
+    {
+        $phaseByPeriod = [];
+
+        foreach ($this->entries as $entries) {
+            foreach ($entries as $entry) {
+                $phaseByPeriod[$entry['period']] = Money::add($phaseByPeriod[$entry['period']] ?? '0', $this->entryBilled($entry));
+            }
+        }
+
+        $blank = ['hours' => 0.0, 'hoursTotal' => '0', 'linesTotal' => '0', 'lineCount' => 0, 'writtenOffHours' => 0.0, 'staff' => []];
+        $cells = [];
+        $people = [];
+        $lines = [];
+
+        foreach ($this->hourLines as $jobNumber => $jobLines) {
+            foreach ($jobLines as $line) {
+                $key = "{$line['period']}|{$jobNumber}";
+                $cell = $cells[$key] ?? $blank;
+                $hours = Money::toFloat($line['hours']);
+                $total = $this->lineTotal($line);
+
+                $cell['linesTotal'] = Money::add($cell['linesTotal'], $total);
+                $cell['lineCount']++;
+
+                if ($hours) {
+                    $cell['hours'] += $hours;
+                    $cell['hoursTotal'] = Money::add($cell['hoursTotal'], $total);
+
+                    if ($line['amount'] !== null && Money::isZero($line['amount'])) {
+                        $cell['writtenOffHours'] += $hours;
+                    }
+                }
+
+                if ($line['staff']) {
+                    $cell['staff'][$line['staff']] = true;
+
+                    $personKey = "{$line['period']}|{$line['staff']}";
+                    $person = $people[$personKey] ?? ['period' => $line['period'], 'staff' => $line['staff'], 'hours' => 0.0, 'linesTotal' => '0', 'jobs' => []];
+                    $person['hours'] += $hours;
+                    $person['linesTotal'] = Money::add($person['linesTotal'], $total);
+                    $person['jobs'][$jobNumber] = true;
+                    $people[$personKey] = $person;
+                }
+
+                $cells[$key] = $cell;
+
+                $lines[] = [
+                    'id' => (int) $line['id'],
+                    'period' => $line['period'],
+                    'jobNumber' => (string) $jobNumber,
+                    'staff' => $line['staff'],
+                    'hours' => $line['hours'],
+                    'rate' => $line['rate'],
+                    'amount' => $line['amount'],
+                    'total' => $total,
+                    'note' => $line['note'],
+                ];
+            }
+        }
+
+        foreach (array_keys($this->hourlyOverrides) as $key) {
+            $cells[$key] ??= $blank;
+        }
+
+        $jobMonths = [];
+        $months = [];
+
+        foreach ($cells as $key => $cell) {
+            [$period, $jobNumber] = explode('|', (string) $key, 2);
+
+            $override = $this->hourlyOverride($jobNumber, $period);
+            $billed = $this->hourlyBilled($jobNumber, $period);
+            $kind = match (true) {
+                $override === null => 'lines',
+                ! $cell['hours'] => 'flat',
+                default => 'adjusted',
+            };
+
+            $staff = array_keys($cell['staff']);
+            sort($staff);
+
+            $jobMonths[] = [
+                'period' => $period,
+                'jobNumber' => $jobNumber,
+                'hours' => round($cell['hours'], 2),
+                'billed' => $billed,
+                'linesTotal' => Money::round($cell['linesTotal']),
+                'rate' => $cell['hours'] ? round(Money::toFloat($cell['hoursTotal']) / $cell['hours'], 2) : null,
+                'override' => $override,
+                'kind' => $kind,
+                'lineCount' => $cell['lineCount'],
+                'writtenOffHours' => round($cell['writtenOffHours'], 2),
+                'people' => $staff,
+            ];
+
+            $month = $months[$period] ?? ['hours' => 0.0, 'hoursTotal' => '0', 'billed' => '0', 'linesTotal' => '0', 'flat' => '0', 'adjust' => '0', 'writtenOffHours' => 0.0, 'jobs' => 0, 'people' => [], 'lineCount' => 0];
+            $month['hours'] += $cell['hours'];
+            $month['hoursTotal'] = Money::add($month['hoursTotal'], $cell['hoursTotal']);
+            $month['billed'] = Money::add($month['billed'], $billed);
+            $month['linesTotal'] = Money::add($month['linesTotal'], $cell['linesTotal']);
+            $month['writtenOffHours'] += $cell['writtenOffHours'];
+            $month['lineCount'] += $cell['lineCount'];
+            $month['people'] += $cell['staff'];
+
+            if ($kind === 'flat') {
+                $month['flat'] = Money::add($month['flat'], $billed);
+            }
+
+            if ($kind === 'adjusted') {
+                $month['adjust'] = Money::add($month['adjust'], Money::sub($billed, $cell['linesTotal']));
+            }
+
+            if (! Money::isZero($billed) || $cell['hours']) {
+                $month['jobs']++;
+            }
+
+            $months[$period] = $month;
+        }
+
+        $first = $months ? min(array_keys($months)) : null;
+        $monthRows = [];
+
+        foreach ($this->periods() as $period) {
+            if ($first === null || $period < $first) {
+                continue;
+            }
+
+            $month = $months[$period] ?? null;
+            $hourly = $month ? Money::round($month['billed']) : '0.00';
+
+            $monthRows[] = [
+                'period' => $period,
+                'status' => $this->periodStatus($period),
+                'hours' => $month ? round($month['hours'], 2) : 0.0,
+                'hoursTotal' => $month ? Money::round($month['hoursTotal']) : '0.00',
+                'billed' => $hourly,
+                'linesTotal' => $month ? Money::round($month['linesTotal']) : '0.00',
+                'flat' => $month ? Money::round($month['flat']) : '0.00',
+                'adjust' => $month ? Money::round($month['adjust']) : '0.00',
+                'rate' => $month && $month['hours'] ? round(Money::toFloat($month['hoursTotal']) / $month['hours'], 2) : null,
+                'writtenOffHours' => $month ? round($month['writtenOffHours'], 2) : 0.0,
+                'jobs' => $month['jobs'] ?? 0,
+                'people' => $month ? count($month['people']) : 0,
+                'lineCount' => $month['lineCount'] ?? 0,
+                'totalBilled' => Money::round(Money::add($phaseByPeriod[$period] ?? '0', $hourly)),
+            ];
+        }
+
+        usort($jobMonths, fn (array $left, array $right) => [$left['period'], $left['jobNumber']] <=> [$right['period'], $right['jobNumber']]);
+
+        $personMonths = array_map(function (array $person) {
+            $jobs = array_map('strval', array_keys($person['jobs']));
+            sort($jobs);
+
+            return [...$person, 'hours' => round($person['hours'], 2), 'linesTotal' => Money::round($person['linesTotal']), 'jobs' => $jobs];
+        }, array_values($people));
+
+        usort($personMonths, fn (array $left, array $right) => [$left['period'], $left['staff']] <=> [$right['period'], $right['staff']]);
+
+        $jobs = [];
+
+        foreach (array_unique(array_column($jobMonths, 'jobNumber')) as $jobNumber) {
+            $job = $this->jobs[$jobNumber] ?? null;
+
+            if ($job === null) {
+                continue;
+            }
+
+            $jobs[$jobNumber] = [
+                'jobName' => $job['job_name'],
+                'developer' => $job['developer'],
+                'division' => $job['division'],
+                'lead' => $job['project_lead'],
+                'active' => (bool) $job['active'],
+            ];
+        }
+
+        ksort($jobs);
+
+        return [
+            'months' => $monthRows,
+            'jobMonths' => $jobMonths,
+            'personMonths' => $personMonths,
+            'lines' => $lines,
+            'jobs' => $jobs,
+        ];
     }
 
     public static function monthEnd(string $date): string

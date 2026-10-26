@@ -1,0 +1,48 @@
+[
+    {
+        "week": "2026-10-05",
+        "placements": {
+            "Alishah": "Nikolas",
+            "Dasha": "Andrew",
+            "Edward": "Josh",
+            "Josh": "Andrew",
+            "Julie": "Andrew",
+            "Kendra": "Andrew",
+            "Nathan": "Julie",
+            "Nicola": "Andrew"
+        },
+        "tags": {},
+        "badges": {},
+        "updated_at": "2026-10-19 08:47:39"
+    },
+    {
+        "week": "2026-10-12",
+        "placements": {
+            "Alishah": "Nikolas",
+            "Dasha": "none",
+            "Edward": "Josh",
+            "Josh": "none",
+            "Julie": "none",
+            "Kendra": "Andrew",
+            "Nathan": "Julie",
+            "Nicola": "none",
+            "Vrinda": "none"
+        },
+        "tags": {},
+        "badges": {},
+        "updated_at": "2026-10-19 09:04:04"
+    },
+    {
+        "week": "2026-10-19",
+        "placements": {
+            "Alishah": "Dasha",
+            "Dasha": "Nikolas",
+            "Josh": "none",
+            "Julie": "Nikolas",
+            "Vrinda": "Andrew"
+        },
+        "tags": {},
+        "badges": {},
+        "updated_at": "2026-10-19 09:30:59"
+    }
+]

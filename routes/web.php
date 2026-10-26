@@ -4,6 +4,7 @@ use App\Enums\Permission;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\MicrosoftController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\QuickJumpController;
 use App\Http\Controllers\WorkbookImportsController;
 use App\Livewire\Hardware;
 use App\Livewire\Invoicing;
@@ -23,6 +24,8 @@ Route::middleware('guest')->group(function () {
 Route::middleware('auth')->group(function () {
     Route::get('/', HomeController::class)->name('home');
     Route::post('logout', LogoutController::class)->name('logout');
+    Route::view('help', 'help.show')->name('help');
+    Route::get('quick-jump', QuickJumpController::class)->name('quickJump');
 
     Route::get('software', Software::class)->name('software');
     Route::get('hardware', Hardware::class)->name('hardware');
@@ -38,6 +41,10 @@ Route::middleware('auth')->group(function () {
         Route::get('imports', [WorkbookImportsController::class, 'create'])->name('imports.create');
         Route::post('imports', [WorkbookImportsController::class, 'store'])->name('imports.store');
     });
+
+    require __DIR__.'/billing.php';
+    require __DIR__.'/team.php';
+    require __DIR__.'/business-development.php';
 
     Route::get('users', Users::class)
         ->middleware('can:'.Permission::ManageUsers->value)

@@ -22,6 +22,9 @@ enum Role: string
                 Permission::ViewFinancials,
                 Permission::EditBilling,
                 Permission::EditOffice,
+                Permission::ViewBusinessDevelopment,
+                Permission::EditBusinessDevelopment,
+                Permission::EditTeam,
             ],
             self::Staff => [],
         };
