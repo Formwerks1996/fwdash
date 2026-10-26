@@ -2,8 +2,8 @@
 
 The management dashboard, rebuilt on Laravel 13, Livewire 4 and Flux, following
 [Spatie's guidelines](https://github.com/spatie/guidelines-skills). It replaces
-the Python dashboard in `../Management Dashboard`: every page except Mosaic is
-ported. The sidebar and the Help page list both come from
+the Python dashboard, now archived in `../Management Dashboard Backup`: every
+page except Mosaic is ported. The sidebar and the Help page list both come from
 `config/navigation.php`.
 
 - **Sign-in:** Microsoft only (Socialite + Entra ID). Everyone starts as
@@ -123,7 +123,7 @@ Load it into the database from the old dashboard's `outreach.json` (thumbnails
 are read from `outreach-thumbs/` beside it unless `--thumbs` says otherwise):
 
 ```bash
-php artisan outreach:import "../Management Dashboard/data/outreach.json"
+php artisan outreach:import "../Management Dashboard Backup/data/outreach.json"
 ```
 
 ## Not ported
