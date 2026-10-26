@@ -1,0 +1,21 @@
+{
+    "cloud": true,
+    "guidelines": true,
+    "packages": [
+        "spatie/guidelines-skills"
+    ],
+    "skills": [
+        "infer-conventions",
+        "deploying-to-cloud",
+        "laravel-best-practices",
+        "testing-best-practices",
+        "socialite-development",
+        "fluxui-development",
+        "livewire-development",
+        "tailwindcss-development",
+        "spatie-javascript",
+        "spatie-laravel-php",
+        "spatie-security",
+        "spatie-version-control"
+    ]
+}
