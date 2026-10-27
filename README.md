@@ -126,6 +126,17 @@ are read from `outreach-thumbs/` beside it unless `--thumbs` says otherwise):
 php artisan outreach:import "../Management Dashboard Backup/data/outreach.json"
 ```
 
+## Mosaic project roles
+
+The timesheet lists the projects Mosaic has you on first. Refresh the Mosaic
+Mock pull (GET only) and load its roles; re-running replaces them:
+
+```bash
+python3 "../Mosaic Mock/sync/mosaic_pull.py" --only reference
+python3 "../Mosaic Mock/sync/mosaic_pull.py" --only portfolios
+php artisan mosaic:import-roles "../Mosaic Mock/data/raw"
+```
+
 ## Not ported
 
 Mosaic is left out: hours come from the workbook's Hours sheet, and "Paused" is

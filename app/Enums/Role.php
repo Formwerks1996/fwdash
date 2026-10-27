@@ -19,14 +19,18 @@ enum Role: string
         return match ($this) {
             self::Admin => Permission::cases(),
             self::Manager => [
+                Permission::ViewProjects,
+                Permission::ViewAlerts,
+                Permission::ViewOffice,
                 Permission::ViewFinancials,
                 Permission::EditBilling,
                 Permission::EditOffice,
                 Permission::ViewBusinessDevelopment,
                 Permission::EditBusinessDevelopment,
                 Permission::EditTeam,
+                Permission::ViewTimesheets,
             ],
-            self::Staff => [],
+            self::Staff => [Permission::ViewProjects, Permission::ViewAlerts, Permission::ViewTimesheets],
         };
     }
 }

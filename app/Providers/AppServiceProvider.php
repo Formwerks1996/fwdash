@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Billing\BillingEngine;
+use App\Enums\Permission;
 use App\Enums\Role;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -31,6 +32,15 @@ class AppServiceProvider extends ServiceProvider
             $event->extendSocialite('azure', AzureProvider::class);
         });
 
-        Gate::before(fn (User $user) => $user->hasRole(Role::Admin->value) ? true : null);
+        Gate::before(function (User $user, string $ability) {
+            if (! $user->hasRole(Role::Admin->value)) {
+                return null;
+            }
+
+            $previewRole = $user->previewRole();
+
+            return $previewRole === null
+                || in_array($ability, array_map(fn (Permission $permission) => $permission->value, $previewRole->permissions()), true);
+        });
     }
 }

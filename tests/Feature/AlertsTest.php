@@ -3,7 +3,9 @@
 use App\Billing\ProjectBurn;
 use App\Livewire\Team\Alerts;
 use App\Models\Project;
+use App\Models\ProjectAssignment;
 use App\Models\ProjectStatus;
+use App\Models\TeamMember;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
@@ -52,6 +54,27 @@ it('lists flagged active projects with hours in the window', function () {
         ->assertDontSee('Job #5');
 });
 
+it('shows staff the alerts only for projects they are assigned to', function () {
+    $staff = User::factory()->staff()->create(['email' => 'pat.tester@formwerks.ca']);
+    TeamMember::create(['name' => 'PatTester', 'email' => 'pat.tester@formwerks.ca', 'tier' => 'staff']);
+    ProjectAssignment::create(['job_number' => '#4', 'member_name' => 'PatTester', 'role' => 'member', 'set_by' => 'test', 'set_at' => now()]);
+
+    $this->actingAs($staff)
+        ->get(route('alerts'))
+        ->assertOk()
+        ->assertSee('Job #4')
+        ->assertDontSee('Job #1')
+        ->assertSee('limited to your projects');
+});
+
+it('shows staff with no roster entry no alerts', function () {
+    $this->actingAs(User::factory()->staff()->create())
+        ->get(route('alerts'))
+        ->assertOk()
+        ->assertDontSee('Job #1')
+        ->assertDontSee('Job #4');
+});
+
 it('shows on-track and paused projects only when asked', function () {
     $this->actingAs(User::factory()->manager()->create());
 
@@ -65,12 +88,6 @@ it('shows on-track and paused projects only when asked', function () {
         ->assertSee('Job #3')
         ->set('months', 0)
         ->assertSee('Job #5');
-});
-
-it('keeps alerts away from staff', function () {
-    $this->actingAs(User::factory()->staff()->create())
-        ->get(route('alerts'))
-        ->assertForbidden();
 });
 
 it('lets a manager change the plan rate, within limits, with an audit entry', function () {

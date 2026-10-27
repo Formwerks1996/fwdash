@@ -88,3 +88,11 @@ it('signs out', function () {
 
     $this->assertGuest();
 });
+
+it('does not send people to Microsoft when no app is registered', function () {
+    config(['services.azure.client_id' => null]);
+
+    $this->get(route('auth.microsoft.redirect'))
+        ->assertRedirect(route('login'))
+        ->assertSessionHasErrors('microsoft');
+});

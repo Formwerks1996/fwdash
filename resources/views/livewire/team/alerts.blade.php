@@ -20,7 +20,9 @@
     <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
             <h1 class="page-title">{{ __('Project Alerts') }}</h1>
-            <p class="page-subtitle">{{ __('Active projects whose hours are at or past 80% of what the fee pays for') }}</p>
+            <p class="page-subtitle">
+                {{ __('Active projects whose hours are at or past 80% of what the fee pays for') }}@if($assignedOnly){{ __(', limited to your projects') }}@endif
+            </p>
         </div>
 
         <div class="flex flex-wrap items-center gap-[0.9rem] text-[0.82rem] text-ink-2">

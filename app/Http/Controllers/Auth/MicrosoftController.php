@@ -14,6 +14,10 @@ class MicrosoftController extends Controller
 {
     public function redirect(): SymfonyRedirectResponse
     {
+        if (blank(config('services.azure.client_id'))) {
+            return to_route('login')->withErrors(['microsoft' => __('Microsoft sign-in is not set up yet.')]);
+        }
+
         return Socialite::driver('azure')->redirect();
     }
 

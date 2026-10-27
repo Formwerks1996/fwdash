@@ -314,7 +314,7 @@
 
     .seg button,
     .seg a {
-        @apply border-l border-[#e3e5e7] px-[0.8rem] py-[0.32rem] text-[0.76rem] text-muted first:border-l-0 hover:text-ink;
+        @apply whitespace-nowrap border-l border-[#e3e5e7] px-[0.8rem] py-[0.32rem] text-[0.76rem] text-muted first:border-l-0 hover:text-ink;
     }
 
     .seg .is-active {

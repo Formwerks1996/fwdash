@@ -50,11 +50,16 @@ class Alerts extends Component
         $from = $burn->windowStart($months);
         $asOf = $burn->asOf();
         $statuses = $this->paused ? ['active', 'paused'] : ['active'];
+        $onlyJobs = $this->onlyAssignedJobs();
 
         $rows = collect();
         $noFee = collect();
 
         foreach (array_keys($burn->engine()->jobs()) as $jobNumber) {
+            if ($onlyJobs !== null && ! in_array($jobNumber, $onlyJobs, true)) {
+                continue;
+            }
+
             $status = $burn->effectiveStatus($jobNumber);
 
             if (! in_array($status, $statuses, true)) {
@@ -101,6 +106,17 @@ class Alerts extends Component
         ];
     }
 
+    /**
+     * Without the financial pages a person sees alerts only for the projects
+     * they are assigned to; null means every project.
+     *
+     * @return ?array<int, string>
+     */
+    protected function onlyAssignedJobs(): ?array
+    {
+        return auth()->user()->visibleJobNumbers();
+    }
+
     public function editRate(): void
     {
         $this->authorize(Permission::EditTeam->value);
@@ -140,6 +156,7 @@ class Alerts extends Component
             'overrun' => $over->sum(fn (array $row) => max(0, $row['hours'] * $rate - $row['fee'])),
             'flaggedCount' => $flagged->count(),
             'canEdit' => auth()->user()->can(Permission::EditTeam->value),
+            'assignedOnly' => $this->onlyAssignedJobs() !== null,
         ]);
     }
 }

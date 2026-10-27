@@ -2,7 +2,9 @@
 
 use App\Livewire\StickyNotes;
 use App\Models\Project;
+use App\Models\ProjectAssignment;
 use App\Models\StickyNote;
+use App\Models\TeamMember;
 use App\Models\User;
 use Livewire\Livewire;
 
@@ -44,12 +46,17 @@ it('pins notes to the record in the address, not to route defaults', function ()
 
 it('jumps only to what the user may open', function () {
     Project::create(['job_number' => '#8114', 'job_name' => 'Loftus 2', 'developer' => 'Polygon']);
+    Project::create(['job_number' => '#8115', 'job_name' => 'Loftus 3', 'developer' => 'Polygon']);
+    TeamMember::create(['name' => 'PatTester', 'email' => 'pat.tester@formwerks.ca', 'tier' => 'staff']);
+    ProjectAssignment::create(['job_number' => '#8114', 'member_name' => 'PatTester', 'role' => 'member', 'set_by' => 'test', 'set_at' => now()]);
 
-    $this->actingAs(User::factory()->staff()->create())
+    $this->actingAs(User::factory()->staff()->create(['email' => 'pat.tester@formwerks.ca']))
         ->getJson(route('quickJump'))
         ->assertOk()
-        ->assertJsonMissing(['kind' => 'Job'])
-        ->assertJsonFragment(['label' => 'Software']);
+        ->assertJsonFragment(['label' => '#8114 Loftus 2'])
+        ->assertJsonMissing(['label' => '#8115 Loftus 3'])
+        ->assertJsonMissing(['label' => 'Software'])
+        ->assertJsonMissing(['kind' => 'Developer']);
 
     $this->actingAs(User::factory()->manager()->create())
         ->getJson(route('quickJump'))

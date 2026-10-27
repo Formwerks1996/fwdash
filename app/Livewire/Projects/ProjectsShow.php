@@ -44,6 +44,9 @@ class ProjectsShow extends Component
         $this->jobNumber = $jobNumber;
 
         abort_if($this->engine()->job($jobNumber) === null, 404);
+
+        $visible = auth()->user()->visibleJobNumbers();
+        abort_if($visible !== null && ! in_array($jobNumber, $visible, true), 403);
     }
 
     #[Computed]

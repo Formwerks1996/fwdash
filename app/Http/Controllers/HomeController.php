@@ -9,8 +9,11 @@ class HomeController
 {
     public function __invoke(): RedirectResponse
     {
-        return request()->user()->can(Permission::ViewFinancials->value)
-            ? to_route('overview')
-            : to_route('software');
+        $user = request()->user();
+
+        return match (true) {
+            $user->can(Permission::ViewFinancials->value) => to_route('overview'),
+            default => to_route('my-week'),
+        };
     }
 }

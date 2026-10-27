@@ -22,7 +22,7 @@
                             </span>
                             <div class="min-w-0 flex-1 text-xs leading-tight">
                                 <div class="truncate font-medium text-ink">{{ auth()->user()->name }}</div>
-                                <div class="truncate text-muted">{{ auth()->user()->primaryRole()->label() }}</div>
+                                <div class="truncate text-muted">{{ auth()->user()->primaryRole()->label() }}@if(auth()->user()->previewRole()) · {{ __('viewing as :role', ['role' => auth()->user()->previewRole()->label()]) }}@endif</div>
                             </div>
                             <form method="POST" action="{{ route('logout') }}">
                                 @csrf
@@ -42,6 +42,7 @@
                         <i class="ph ph-list"></i>
                     </button>
                     <div x-show="open" x-cloak x-on:click.outside="open = false" class="absolute inset-x-0 top-14 border-b border-line bg-white p-4 shadow-lg">
+                        <div class="mb-4">@include('partials.view-as')</div>
                         @include('partials.nav')
                         <form method="POST" action="{{ route('logout') }}" class="mt-4 border-t border-line pt-4">
                             @csrf
@@ -53,11 +54,14 @@
                 @auth
                     <header class="sticky top-0 z-20 hidden h-[72px] items-center justify-between gap-4 border-b border-line bg-white px-8 lg:flex print:hidden">
                         @include('partials.quick-jump')
-                        @can('edit business development')
-                            <button type="button" class="btn" x-data x-on:click="Livewire.dispatch('open-new-pursuit')">
-                                <i class="ph ph-plus"></i>{{ __('New Pursuit') }}
-                            </button>
-                        @endcan
+                        <div class="flex items-center gap-4">
+                            @include('partials.view-as')
+                            @can('edit business development')
+                                <button type="button" class="btn whitespace-nowrap" x-data x-on:click="Livewire.dispatch('open-new-pursuit')">
+                                    <i class="ph ph-plus"></i>{{ __('New Pursuit') }}
+                                </button>
+                            @endcan
+                        </div>
                     </header>
                 @endauth
 

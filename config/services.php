@@ -25,7 +25,7 @@ return [
         'client_id' => env('AZURE_CLIENT_ID'),
         'client_secret' => env('AZURE_CLIENT_SECRET'),
         'redirect' => env('AZURE_REDIRECT_URI', rtrim((string) env('APP_URL', 'http://localhost'), '/').'/auth/microsoft/callback'),
-        'tenant' => env('AZURE_TENANT_ID', 'organizations'),
+        'tenant' => env('AZURE_TENANT_ID') ?: 'organizations',
         'allowed_domains' => array_filter(explode(',', (string) env('AZURE_ALLOWED_DOMAINS', 'formwerks.ca'))),
     ],
 

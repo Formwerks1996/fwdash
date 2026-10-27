@@ -10,13 +10,10 @@ beforeEach(function () {
     Project::create(['job_number' => '#8113', 'job_name' => 'Oak Street', 'active' => true]);
 });
 
-it('shows the lineup to every signed-in user, read-only without edit team', function () {
+it('keeps the lineup from staff and shows it with editing to admins', function () {
     $this->actingAs(User::factory()->staff()->create())
         ->get(route('lineup', ['week' => '2026-10-19']))
-        ->assertOk()
-        ->assertSee('Team Lineup')
-        ->assertSee('Nikolas Dittmann')
-        ->assertDontSee('Copy last week');
+        ->assertForbidden();
 
     $this->actingAs(User::factory()->admin()->create())
         ->get(route('lineup'))

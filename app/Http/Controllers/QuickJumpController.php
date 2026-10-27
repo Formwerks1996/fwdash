@@ -23,8 +23,10 @@ class QuickJumpController
             ->flatten(1)
             ->map(fn (array $page) => ['kind' => 'Page', 'label' => __($page['label']), 'sub' => null, 'text' => mb_strtolower(__($page['label'])), 'url' => route($page['route'])]);
 
-        $jobs = $user->can(Permission::ViewFinancials->value)
-            ? Project::orderBy('job_name')->get()->map(fn (Project $project) => [
+        $visible = $user->visibleJobNumbers();
+
+        $jobs = $user->can(Permission::ViewProjects->value)
+            ? Project::when($visible !== null, fn ($query) => $query->whereIn('job_number', $visible))->orderBy('job_name')->get()->map(fn (Project $project) => [
                 'kind' => 'Job',
                 'label' => "{$project->job_number} {$project->job_name}",
                 'sub' => collect([$project->developer, $project->division, $project->active ? null : __('closed')])->filter()->implode(' · '),

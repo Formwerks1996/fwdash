@@ -23,13 +23,17 @@ return [
     ],
 
     'Projects' => [
-        ['route' => 'projects.index', 'icon' => 'ph-folders', 'label' => 'Projects', 'permission' => 'view financials', 'editable' => true,
+        ['route' => 'my-week', 'icon' => 'ph-calendar-check', 'label' => 'My Week', 'permission' => null, 'editable' => false,
+            'help' => 'Your week from the Team Lineup: who you go to and the projects you are on, with each one’s PM and partner.'],
+        ['route' => 'projects.index', 'icon' => 'ph-folders', 'label' => 'Projects', 'permission' => 'view projects', 'editable' => true,
             'help' => 'Every billing job with its status, hours, billed and $/hr. Click a row for the project page: contract, month-by-month billing and payments.'],
-        ['route' => 'alerts', 'icon' => 'ph-warning', 'label' => 'Project Alerts', 'permission' => 'view financials', 'editable' => false,
+        ['route' => 'timesheets', 'icon' => 'ph-clock', 'label' => 'Timesheets', 'permission' => 'view timesheets', 'editable' => true,
+            'help' => 'Log your own hours each week: a row per project and phase, or office and time off, against 7.5 h a day. Admins can read anyone’s week.'],
+        ['route' => 'alerts', 'icon' => 'ph-warning', 'label' => 'Project Alerts', 'permission' => 'view alerts', 'editable' => false,
             'help' => 'Projects whose hours are running ahead of what has been billed.'],
         ['route' => 'pm-desk', 'icon' => 'ph-briefcase', 'label' => 'PM Desk', 'permission' => 'view financials', 'editable' => true,
             'help' => 'One project manager’s week: their projects, their team and their tasks.'],
-        ['route' => 'lineup', 'icon' => 'ph-users-three', 'label' => 'Team Lineup', 'permission' => null, 'editable' => true,
+        ['route' => 'lineup', 'icon' => 'ph-users-three', 'label' => 'Team Lineup', 'permission' => 'view office', 'editable' => true,
             'help' => 'Who reports to whom this week, and what everyone is working on.'],
     ],
 
@@ -43,9 +47,9 @@ return [
     ],
 
     'Office' => [
-        ['route' => 'software', 'icon' => 'ph-cube', 'label' => 'Software', 'permission' => null, 'editable' => true,
+        ['route' => 'software', 'icon' => 'ph-cube', 'label' => 'Software', 'permission' => 'view office', 'editable' => true,
             'help' => 'What the firm pays for software, annualised and converted to CAD, with seats paid for but unused.'],
-        ['route' => 'hardware', 'icon' => 'ph-laptop', 'label' => 'Hardware', 'permission' => null, 'editable' => true,
+        ['route' => 'hardware', 'icon' => 'ph-laptop', 'label' => 'Hardware', 'permission' => 'view office', 'editable' => true,
             'help' => 'Every computer, who has it, and when it is due for replacement.'],
     ],
 

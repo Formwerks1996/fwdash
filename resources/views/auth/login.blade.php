@@ -16,15 +16,25 @@
                         <div class="error-note mt-6 text-left">{{ $errors->first() }}</div>
                     @endif
 
-                    <a href="{{ route('auth.microsoft.redirect') }}" class="btn mt-8 w-full justify-center py-3">
-                        <svg class="size-4" viewBox="0 0 23 23" aria-hidden="true">
-                            <path fill="#f35325" d="M1 1h10v10H1z" />
-                            <path fill="#81bc06" d="M12 1h10v10H12z" />
-                            <path fill="#05a6f0" d="M1 12h10v10H1z" />
-                            <path fill="#ffba08" d="M12 12h10v10H12z" />
-                        </svg>
-                        {{ __('Sign in with Microsoft') }}
-                    </a>
+                    @if(app()->isLocal() && blank(config('services.azure.client_id')))
+                        {{-- No Entra app registered locally: sign in as an existing user instead. --}}
+                        <p class="mt-8 text-left text-xs uppercase tracking-wide text-muted">{{ __('Local sign-in') }}</p>
+                        <div class="mt-2 grid gap-2">
+                            @foreach(\App\Models\User::orderBy('name')->get() as $devUser)
+                                <a href="{{ route('dev.login', $devUser->email) }}" class="btn w-full justify-center py-3">{{ $devUser->name }}</a>
+                            @endforeach
+                        </div>
+                    @else
+                        <a href="{{ route('auth.microsoft.redirect') }}" class="btn mt-8 w-full justify-center py-3">
+                            <svg class="size-4" viewBox="0 0 23 23" aria-hidden="true">
+                                <path fill="#f35325" d="M1 1h10v10H1z" />
+                                <path fill="#81bc06" d="M12 1h10v10H12z" />
+                                <path fill="#05a6f0" d="M1 12h10v10H1z" />
+                                <path fill="#ffba08" d="M12 12h10v10H12z" />
+                            </svg>
+                            {{ __('Sign in with Microsoft') }}
+                        </a>
+                    @endif
                 </div>
             </div>
         </div>

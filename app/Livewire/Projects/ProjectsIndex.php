@@ -81,7 +81,10 @@ class ProjectsIndex extends Component
             ->groupBy(fn (array $key) => $key[1])
             ->map(fn (Collection $keys) => $keys->max(fn (array $key) => $key[0]));
 
+        $visible = auth()->user()->visibleJobNumbers();
+
         return collect($engine->allSummaries())
+            ->when($visible !== null, fn (Collection $rows) => $rows->filter(fn (array $row) => in_array($row['jobNumber'], $visible, true)))
             ->map(function (array $row) use ($engine, $overrides, $latest, $lastThree, $lastBilled) {
                 $override = $overrides[$row['jobNumber']] ?? null;
                 $hours = $engine->hoursByPeriod($row['jobNumber']);

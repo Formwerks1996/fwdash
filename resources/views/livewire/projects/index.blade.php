@@ -15,55 +15,58 @@
             <p class="page-subtitle">{{ __('Every project with a billing record. Hours come from the uploaded workbook.') }}</p>
         </div>
         @if($canEdit)
-            <button type="button" class="btn" wire:click="$toggle('adding')">
+            <button type="button" class="btn" x-data x-on:click="$wire.adding = true">
                 <i class="ph ph-plus"></i>{{ __('Add project') }}
             </button>
         @endif
     </div>
 
-    @if($adding)
-        <form wire:submit="addProject" class="card grid gap-4 border-t-2 border-t-gold sm:grid-cols-2 xl:grid-cols-4">
-            <div>
-                <label class="field-label" for="job_number">{{ __('Job number') }}</label>
-                <input id="job_number" wire:model="form.job_number" class="field-input" placeholder="#8120">
-                @error('form.job_number') <p class="error-note mt-1">{{ $message }}</p> @enderror
-            </div>
-            <div class="xl:col-span-2">
-                <label class="field-label" for="job_name">{{ __('Project name') }}</label>
-                <input id="job_name" wire:model="form.job_name" class="field-input">
-                @error('form.job_name') <p class="error-note mt-1">{{ $message }}</p> @enderror
-            </div>
-            <div>
-                <label class="field-label" for="developer">{{ __('Developer') }}</label>
-                <input id="developer" wire:model="form.developer" class="field-input">
-            </div>
-            <div>
-                <label class="field-label" for="division">{{ __('Division') }}</label>
-                <input id="division" wire:model="form.division" class="field-input" list="division-options">
-                <datalist id="division-options">
-                    @foreach($divisions as $option)
-                        <option value="{{ $option }}">
-                    @endforeach
-                </datalist>
-            </div>
-            <div>
-                <label class="field-label" for="project_lead">{{ __('Project lead') }}</label>
-                <input id="project_lead" wire:model="form.project_lead" class="field-input">
-            </div>
-            <div>
-                <label class="field-label" for="ca_per_month">{{ __('CA per month') }}</label>
-                <input id="ca_per_month" type="number" step="0.01" min="0" wire:model="form.ca_per_month" class="field-input">
-            </div>
-            <div class="flex items-end justify-between gap-3">
-                <label class="flex items-center gap-2 text-sm text-ink-2">
-                    <input type="checkbox" wire:model="form.active" class="accent-navy"> {{ __('Active') }}
-                </label>
-                <span class="flex gap-2">
-                    <button type="button" class="btn-secondary" wire:click="$set('adding', false)">{{ __('Cancel') }}</button>
-                    <button type="submit" class="btn">{{ __('Save') }}</button>
-                </span>
-            </div>
-        </form>
+    @if($canEdit)
+        <x-modal wire:model="adding" :title="__('Add project')" max-width="620px">
+            <form wire:submit="addProject" class="grid gap-4 sm:grid-cols-3">
+                <div>
+                    <label class="field-label" for="job_number">{{ __('Job number') }}</label>
+                    <input id="job_number" wire:model="form.job_number" class="field-input" placeholder="#8120">
+                    @error('form.job_number') <p class="error-note mt-1">{{ $message }}</p> @enderror
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="field-label" for="job_name">{{ __('Project name') }}</label>
+                    <input id="job_name" wire:model="form.job_name" class="field-input">
+                    @error('form.job_name') <p class="error-note mt-1">{{ $message }}</p> @enderror
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="field-label" for="developer">{{ __('Developer') }}</label>
+                    <input id="developer" wire:model="form.developer" class="field-input">
+                </div>
+                <div>
+                    <label class="field-label" for="division">{{ __('Division') }}</label>
+                    <input id="division" wire:model="form.division" class="field-input" list="division-options">
+                    <datalist id="division-options">
+                        @foreach($divisions as $option)
+                            <option value="{{ $option }}">
+                        @endforeach
+                    </datalist>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="field-label" for="project_lead">{{ __('Project lead') }}</label>
+                    <input id="project_lead" wire:model="form.project_lead" class="field-input">
+                </div>
+                <div>
+                    <label class="field-label" for="ca_per_month">{{ __('CA per month') }}</label>
+                    <input id="ca_per_month" type="number" step="0.01" min="0" wire:model="form.ca_per_month" class="field-input" placeholder="0.00">
+                    @error('form.ca_per_month') <p class="error-note mt-1">{{ $message }}</p> @enderror
+                </div>
+                <div class="mt-2 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 sm:col-span-3">
+                    <label class="flex items-center gap-2 text-sm text-ink-2">
+                        <input type="checkbox" wire:model="form.active" class="accent-navy"> {{ __('Active project') }}
+                    </label>
+                    <span class="flex gap-2">
+                        <button type="button" class="btn-secondary" x-on:click="$wire.adding = false">{{ __('Cancel') }}</button>
+                        <button type="submit" class="btn" wire:loading.attr="disabled" wire:target="addProject">{{ __('Add project') }}</button>
+                    </span>
+                </div>
+            </form>
+        </x-modal>
     @endif
 
     <section class="space-y-4">
