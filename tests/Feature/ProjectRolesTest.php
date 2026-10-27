@@ -2,7 +2,6 @@
 
 use App\Livewire\Projects\ProjectRoles;
 use App\Livewire\Projects\ProjectsIndex;
-use App\Livewire\Team\PmDesk;
 use App\Models\Project;
 use App\Models\ProjectRole;
 use App\Models\User;
@@ -26,7 +25,7 @@ it('starts Andrew and Nikolas as leads of their projects and Nathan as PM of 485
     ]);
 });
 
-it('puts the projects someone leads or manages on their PM Desk with who leads and who manages each', function () {
+it('puts the projects someone leads or manages under their name on Projects', function () {
     Project::create(['job_number' => '#1026', 'job_name' => '4855 Paton St', 'active' => true]);
     Project::create(['job_number' => '#8016', 'job_name' => 'Seaton', 'active' => true]);
     ProjectRole::create(['job_number' => '#1026', 'member_name' => 'Andrew', 'role' => ProjectRole::Lead, 'set_by' => 'test', 'set_at' => now()]);
@@ -35,14 +34,12 @@ it('puts the projects someone leads or manages on their PM Desk with who leads a
 
     $this->actingAs(User::factory()->admin()->create());
 
-    Livewire::test(PmDesk::class, ['member' => 'Nathan'])
+    Livewire::test(ProjectsIndex::class, ['person' => 'Nathan', 'view' => 'cards'])
         ->assertSee('4855 Paton St')
-        ->assertSee('You’re the PM')
         ->assertDontSee('Seaton');
 
-    Livewire::test(PmDesk::class, ['member' => 'Andrew'])
+    Livewire::test(ProjectsIndex::class, ['person' => 'Andrew', 'view' => 'cards'])
         ->assertSee('4855 Paton St')
-        ->assertSee('You lead this')
         ->assertDontSee('Seaton');
 });
 

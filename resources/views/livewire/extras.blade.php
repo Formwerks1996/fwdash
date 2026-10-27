@@ -2,436 +2,319 @@
     use App\Livewire\Extras;
     use App\Support\Format;
 
-    $month = $this->month;
-    $window = $this->window;
-    $rows = $this->jobRows;
-    $people = $this->people;
-    $matrix = $this->matrix;
-    $year = substr((string) $period, 0, 4);
-    $short = $period ? \Carbon\CarbonImmutable::parse($period)->format('M Y') : '';
-    $signed = fn (float $value) => ($value > 0 ? '+' : '').Extras::compact($value);
+    $chips = ['proposed' => 'is-info', 'active' => 'is-on', 'complete' => '', 'rejected' => 'is-danger'];
+    $jobNames = $this->jobNames;
 @endphp
 
 <div class="space-y-8">
-    @if($this->months->isEmpty())
-        <div class="card">
+    <div class="flex flex-wrap items-end justify-between gap-4">
+        <div>
             <h1 class="page-title">{{ __('Extras') }}</h1>
-            <p class="mt-2 text-sm text-muted">{{ __('No hourly billing has been entered yet.') }}</p>
+            <p class="page-subtitle">{{ __('Work beyond a job\'s contract phases: what was agreed, what it has billed, and every hourly line tagged to it.') }}</p>
         </div>
-    @else
-        <div class="flex flex-wrap items-end justify-between gap-4">
-            <div>
-                <h1 class="page-title">{{ __('Extras') }}</h1>
-                <p class="page-subtitle">
-                    {{ __('Hourly billing, month by month') }} · <span class="text-ink">{{ Format::month($period) }}</span>
-                    @if(($month['status'] ?? null) === 'closed') · {{ __('closed') }}@endif
-                </p>
-            </div>
+        @if($canEdit)
+            <button type="button" class="btn" wire:click="create"><i class="ph ph-plus"></i>{{ __('New extra') }}</button>
+        @endif
+    </div>
 
+    <div class="card p-0">
+        <div class="toolbar px-6 pt-5 pb-4">
+            <div class="relative w-full max-w-sm">
+                <i class="ph ph-magnifying-glass absolute top-1/2 left-3 -translate-y-1/2 text-muted"></i>
+                <input type="search" wire:model.live.debounce.250ms="search" placeholder="{{ $view === 'untagged' ? __('Search job, person, note') : __('Search extra, job #, note') }}" class="search-input">
+            </div>
             <div class="flex flex-wrap items-center gap-3">
-                <select wire:model.live="period" class="select" aria-label="{{ __('Month') }}">
-                    @foreach($this->months->reverse() as $option)
-                        <option value="{{ $option['period'] }}">{{ Format::month($option['period']) }}@if($option['status'] === 'closed') ({{ __('closed') }})@endif</option>
+                <div class="seg">
+                    @foreach(['active' => __('Active'), 'proposed' => __('Proposed'), 'complete' => __('Complete'), 'rejected' => __('Rejected'), 'all' => __('All'), 'untagged' => __('Untagged')] as $value => $label)
+                        <button type="button" wire:click="setView('{{ $value }}')" @class(['is-active' => $view === $value])>{{ $label }}@if($value === 'untagged' && $untaggedCount) <span class="ml-0.5 opacity-70">{{ $untaggedCount }}</span>@endif</button>
+                    @endforeach
+                </div>
+                <select wire:model.live="job" class="select max-w-[16rem]" aria-label="{{ __('Project') }}">
+                    <option value="">{{ __('All projects') }}</option>
+                    @foreach($jobNames as $number => $name)
+                        <option value="{{ $number }}">{{ $number }} {{ $name }}</option>
                     @endforeach
                 </select>
-                <select wire:model.live="range" class="select" aria-label="{{ __('Window') }}">
-                    @foreach($this->ranges() as $option)
-                        <option value="{{ $option['key'] }}">{{ $option['label'] }}</option>
-                    @endforeach
-                </select>
-                <a href="{{ route('monthEnd.entry', ['period' => $period, 'from' => 'extras']) }}" class="btn" wire:navigate>
-                    {{ __('Enter billing') }} <i class="ph ph-arrow-right"></i>
-                </a>
+                @if($canEdit && $view === 'untagged')
+                    <button type="button" class="btn-secondary" wire:click="autoTag" title="{{ __('Tag lines whose note names an extra on their job, by its number or title') }}"><i class="ph ph-magic-wand"></i>{{ __('Tag from notes') }}</button>
+                @endif
             </div>
         </div>
+        @if($notice)
+            <p class="px-6 pb-3 text-xs text-ink-2"><i class="ph ph-check"></i> {{ $notice }}</p>
+        @endif
+        @error('tag') <p class="error-note px-6 pb-3">{{ $message }}</p> @enderror
 
-        <div class="kpis grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
-            <x-kpi :label="__('Extras hours')" :value="Extras::hours($month['hours'] ?? null).'<small> h</small>'" dark>
-                @if($previous && $previous['hours'])
-                    @php $change = ($month['hours'] - $previous['hours']) / $previous['hours']; @endphp
-                    <b>{{ $change >= 0 ? '+' : '−' }}{{ number_format(abs($change) * 100) }}%</b>
-                    {{ __('on :month (:hours h)', ['month' => \Carbon\CarbonImmutable::parse($previous['period'])->format('M y'), 'hours' => Extras::hours($previous['hours'])]) }}
-                @else
-                    {{ __('no month before it to compare') }}
-                @endif
-            </x-kpi>
-            <x-kpi :label="__('Extras invoiced')" :value="Extras::compact($month['billed'] ?? null)">
-                @if((float) ($month['billed'] ?? 0) && (float) $month['totalBilled'])
-                    <b>{{ Format::pct((float) $month['billed'] / (float) $month['totalBilled']) }}</b> {{ __('of the month\'s :total', ['total' => Extras::compact($month['totalBilled'])]) }}
-                @else
-                    {{ __('nothing invoiced as hourly') }}
-                @endif
-            </x-kpi>
-            <x-kpi :label="__('Billed per line hour')" :value="$month && $month['rate'] !== null ? '$'.number_format($month['rate']).'<small>/hr</small>' : Format::Empty">
-                {{ __('what the lines with hours bill, over those hours') }}
-            </x-kpi>
-            <x-kpi :label="__('Written-off hours')" :value="Extras::hours($month['writtenOffHours'] ?? 0).'<small> h</small>'">
-                {{ __('worked and deliberately not billed') }}
-                @if(abs((float) ($month['billed'] ?? 0) - (float) ($month['linesTotal'] ?? 0)) >= 0.5)
-                    · <b>{{ $signed((float) $month['billed'] - (float) $month['linesTotal']) }}</b> {{ __('off the timesheets') }}
-                @endif
-            </x-kpi>
-            <x-kpi :label="$rangeLabel" :value="Format::number($window->sum('hours')).'<small> h</small>'">
-                {{ Extras::compact($window->sum(fn ($row) => (float) $row['billed'])) }} {{ __('invoiced') }}
-                @if(Extras::rateOf($window)) · ${{ number_format(Extras::rateOf($window)) }}/hr @endif
-            </x-kpi>
-        </div>
-
-        <div class="card">
-            <h2 class="section-title">{{ __('Month by month') }}</h2>
-            <p class="section-note">
-                {{ __('Click a month to open it below. Invoiced can fall below what the hours suggest, or go negative: a month carries any flat amounts, caps and credits a job was billed.') }}
-            </p>
-            <div class="mt-4 grid gap-6 lg:grid-cols-2">
-                <div>
-                    <div class="text-xs font-medium tracking-[0.1em] text-muted uppercase">{{ __('Extras hours') }} <span class="normal-case tracking-normal">· {{ __('hours on billing lines') }}</span></div>
-                    <x-chart kind="extrasBars" :data="$hoursChart" height="13rem" class="mt-2" x-on:chart-click="$wire.selectIndex($event.detail.index)" />
-                </div>
-                <div>
-                    <div class="text-xs font-medium tracking-[0.1em] text-muted uppercase">{{ __('Extras invoiced') }} <span class="normal-case tracking-normal">· {{ __('invoiced as hourly') }}</span></div>
-                    <x-chart kind="extrasBars" :data="$billedChart" height="13rem" class="mt-2" x-on:chart-click="$wire.selectIndex($event.detail.index)" />
-                </div>
-            </div>
-        </div>
-
-        <div class="grid gap-6 xl:grid-cols-3">
-            <div class="card p-0 xl:col-span-2">
-                <div class="toolbar px-6 pt-5 pb-3">
-                    <div>
-                        <h2 class="section-title">
-                            {{ $scope === 'year' ? __(':year, job by job', ['year' => $year]) : __(':month, job by job', ['month' => Format::month($period)]) }}
-                        </h2>
-                        <p class="section-note">
-                            {{ $scope === 'year'
-                                ? __('Every month of :year so far, added up per job. Click a job for its months; click a month to open it.', ['year' => $year])
-                                : __('Click a job for who logged the time and what was billed against it. The pencil opens that job\'s month on the entry screen.') }}
-                        </p>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <div class="seg">
-                            <button type="button" wire:click="setScope('month')" @class(['is-active' => $scope === 'month'])>{{ $short }}</button>
-                            <button type="button" wire:click="setScope('year')" @class(['is-active' => $scope === 'year'])>{{ __('Year :year', ['year' => $year]) }}</button>
-                        </div>
-                        @if($rows->isNotEmpty())
-                            <button type="button" class="btn-secondary" wire:click="toggleAll">
-                                {{ count($open) >= $rows->count() ? __('Collapse all') : __('Expand all') }}
-                            </button>
-                        @endif
-                    </div>
-                </div>
-
+        @if($view === 'untagged')
+            @php $groups = $this->untagged; @endphp
+            @if($groups->isEmpty())
+                <p class="px-6 py-10 text-center text-muted">{{ __('Every hourly line is on an extra.') }}</p>
+            @else
                 <div class="overflow-x-auto">
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>{{ __('Job') }}</th>
+                                <th>{{ __('Project') }}</th>
+                                <th class="is-num">{{ __('Lines') }}</th>
                                 <th class="is-num">{{ __('Hours') }}</th>
-                                <th class="is-num">{{ __('$/hr') }}</th>
-                                <th class="is-num" title="{{ __('Flat amounts, caps, top-ups and credits: invoiced as hourly but not from the lines.') }}">{{ __('Off the lines') }}</th>
-                                <th class="is-num">{{ __('Invoiced') }}</th>
-                                <th></th>
+                                <th class="is-num">{{ __('Billed') }}</th>
+                                <th>{{ __('Latest') }}</th>
+                                <th>{{ __('Notes on them') }}</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse($rows as $row)
-                                @php $isOpen = in_array($row['jobNumber'], $open, true); @endphp
-                                <tr class="is-link" wire:key="ex-{{ $scope }}-{{ $row['jobNumber'] }}" wire:click="toggle('{{ $row['jobNumber'] }}')">
-                                    <td class="!whitespace-normal">
-                                        <div class="flex items-start gap-2">
-                                            <i @class(['ph mt-0.5 text-muted', 'ph-caret-down' => $isOpen, 'ph-caret-right' => ! $isOpen])></i>
-                                            <div>
-                                                <b class="font-medium text-ink">{{ $row['jobName'] }}</b>
-                                                <span class="text-xs text-muted">{{ $row['jobNumber'] }}</span>
-                                                @if($row['kind'] === 'flat')
-                                                    <span class="chip" title="{{ __('Invoiced as a figure with no billing lines behind it.') }}">{{ __('flat, no lines') }}</span>
-                                                @elseif($row['kind'] === 'adjusted')
-                                                    <span class="chip is-warn" title="{{ __('The staff lines came to :lines; :billed was invoiced.', ['lines' => Format::money($row['linesTotal'], 2), 'billed' => Format::money($row['billed'], 2)]) }}">{{ $signed($row['offLines']) }} {{ __('on the lines') }}</span>
-                                                @endif
-                                                <div class="text-xs text-muted">{{ $row['developer'] ?? '—' }}@if($row['people']) · {{ implode(', ', $row['people']) }}@endif</div>
-                                            </div>
-                                        </div>
+                            @foreach($groups as $jobNumber => $lines)
+                                <tr wire:key="ut-{{ $jobNumber }}" class="cursor-pointer" wire:click="toggleJob(@js($jobNumber))">
+                                    <td>
+                                        <i @class(['ph text-muted', 'ph-caret-down' => $openJob === $jobNumber, 'ph-caret-right' => $openJob !== $jobNumber])></i>
+                                        <span class="font-medium text-ink">{{ $jobNames[$jobNumber] ?? $jobNumber }}</span>
+                                        <span class="ml-1 text-xs text-muted">{{ $jobNumber }}</span>
                                     </td>
-                                    <td class="is-num">{{ $row['hours'] ? Extras::hours($row['hours']) : '' }}@if(! $row['hours'])<span class="empty">—</span>@endif</td>
-                                    <td class="is-num">{{ $row['rate'] !== null ? '$'.number_format($row['rate']) : '' }}@if($row['rate'] === null)<span class="empty">—</span>@endif</td>
-                                    <td class="is-num">
-                                        @if(abs($row['offLines']) >= 0.5)
-                                            <span @class(['text-[#20825c]' => $row['offLines'] > 0, 'text-[#b33a32]' => $row['offLines'] < 0])>{{ $signed($row['offLines']) }}</span>
-                                        @else
-                                            <span class="empty">—</span>
-                                        @endif
-                                    </td>
-                                    <td class="is-num font-medium">{{ Extras::compact($row['billed']) }}</td>
-                                    <td class="text-right whitespace-nowrap" wire:click.stop>
-                                        <a href="{{ route('monthEnd.entry', ['period' => $period, 'job' => $row['jobNumber'], 'from' => 'extras']) }}" class="px-1 text-muted hover:text-navy" title="{{ __('Open this month on the entry screen') }}" wire:navigate><i class="ph ph-pencil-simple"></i></a>
-                                        <a href="{{ route('projects.show', $row['jobNumber']) }}" class="px-1 text-muted hover:text-navy" title="{{ __('Open the project') }}" wire:navigate><i class="ph ph-arrow-right"></i></a>
-                                    </td>
+                                    <td class="is-num">{{ $lines->count() }}</td>
+                                    <td class="is-num">{{ Format::number($lines->sum(fn ($line) => (float) $line->hours), 1) }}</td>
+                                    <td class="is-num">{{ Format::compact($lines->sum(fn ($line) => Extras::lineTotal($line))) }}</td>
+                                    <td class="text-muted">{{ Format::shortMonth($lines->first()->period) }}</td>
+                                    <td class="max-w-[22rem] truncate text-xs text-muted">{{ $lines->pluck('note')->filter()->unique()->take(4)->implode(' · ') ?: __('no notes') }}</td>
                                 </tr>
-
-                                @if($isOpen)
-                                    <tr wire:key="ex-{{ $scope }}-{{ $row['jobNumber'] }}-detail">
-                                        <td colspan="6" class="bg-[#fafbfb] !whitespace-normal">
-                                            @if($scope === 'year')
-                                                <div class="mb-1 text-xs font-medium tracking-[0.08em] text-ink-2 uppercase">{{ __(':year month by month', ['year' => $year]) }}</div>
-                                                <table class="w-full max-w-xl text-xs">
-                                                    <thead class="text-muted">
-                                                        <tr><th class="py-1 text-left font-normal">{{ __('Month') }}</th><th class="text-right font-normal">h</th><th class="text-right font-normal">$/hr</th><th class="text-right font-normal">{{ __('Invoiced') }}</th></tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        @foreach($row['months'] as $cell)
-                                                            <tr class="cursor-pointer hover:bg-white" wire:click="openMonth('{{ $cell['period'] }}')">
-                                                                <td class="py-1">{{ Format::month($cell['period']) }}</td>
-                                                                <td class="text-right tabular-nums">{{ $cell['hours'] ? Extras::hours($cell['hours']) : '—' }}</td>
-                                                                <td class="text-right tabular-nums">{{ $cell['rate'] !== null ? '$'.number_format($cell['rate']) : '—' }}</td>
-                                                                <td class="text-right tabular-nums">{{ Format::money($cell['billed']) }}</td>
-                                                            </tr>
+                                @if($openJob === $jobNumber)
+                                    @php $options = $this->extrasFor($jobNumber); @endphp
+                                    <tr wire:key="ut-{{ $jobNumber }}-lines">
+                                        <td colspan="6" class="bg-[#fafbfb] px-6 py-4">
+                                            @if($canEdit)
+                                                <div class="mb-3 flex flex-wrap items-center gap-2 text-sm" x-data="{ to: '' }">
+                                                    <span class="text-ink-2">{{ __('Tag the ticked lines to') }}</span>
+                                                    <select class="select" x-model="to" aria-label="{{ __('Extra') }}">
+                                                        <option value="">{{ __('Pick an extra…') }}</option>
+                                                        @foreach($options as $option)
+                                                            <option value="{{ $option->id }}">{{ $option->label() }} ({{ $option->status }})</option>
                                                         @endforeach
-                                                    </tbody>
-                                                </table>
-                                            @else
-                                                <div class="mb-1 text-xs font-medium tracking-[0.08em] text-ink-2 uppercase">{{ __('On the billing lines') }}</div>
-                                                @if($row['lines'])
-                                                    <table class="w-full text-xs">
-                                                        <thead class="text-muted">
-                                                            <tr>
-                                                                <th class="py-1 text-left font-normal">{{ __('Staff') }}</th>
-                                                                <th class="text-right font-normal">{{ __('Hours') }}</th>
-                                                                <th class="text-right font-normal">{{ __('Rate') }}</th>
-                                                                <th class="text-right font-normal">{{ __('Total') }}</th>
-                                                                <th class="pl-4 text-left font-normal">{{ __('Note') }}</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            @foreach($row['lines'] as $line)
-                                                                <tr>
-                                                                    <td class="py-1">{{ $line['staff'] ?? '—' }}</td>
-                                                                    <td class="text-right tabular-nums">{!! $line['hours'] !== null && (float) $line['hours'] ? e(Extras::hours($line['hours'])) : '<span class="empty">—</span>' !!}</td>
-                                                                    <td class="text-right tabular-nums">{{ Format::money($line['rate']) }}</td>
-                                                                    <td class="text-right tabular-nums">
-                                                                        {{ Format::money($line['total'], 2) }}
-                                                                        @if($line['amount'] !== null && (float) $line['amount'] == 0)
-                                                                            <span class="chip">{{ __('not billed') }}</span>
-                                                                        @elseif($line['amount'] !== null)
-                                                                            <span class="chip" title="{{ __('A figure typed in place of hours × rate') }}">{{ __('typed') }}</span>
-                                                                        @endif
-                                                                    </td>
-                                                                    <td class="pl-4 text-muted">{{ $line['note'] }}</td>
-                                                                </tr>
-                                                            @endforeach
-                                                        </tbody>
-                                                    </table>
-                                                @else
-                                                    <p class="text-xs text-muted">{{ __('No staff lines — billed as one figure, or not billed hourly.') }}</p>
-                                                @endif
-                                                @if($row['override'] !== null)
-                                                    <p class="mt-2 text-xs text-ink-2">{{ __('Invoiced :billed in place of the lines\' :lines.', ['billed' => Format::money($row['billed'], 2), 'lines' => Format::money($row['linesTotal'], 2)]) }}</p>
-                                                @endif
+                                                        <option value="new">{{ __('+ A new extra…') }}</option>
+                                                    </select>
+                                                    <button type="button" class="btn" x-bind:disabled="! to" x-on:click="$wire.tagPicked(@js($jobNumber), to)">{{ __('Tag') }}</button>
+                                                    <button type="button" class="text-xs text-navy underline" x-on:click="$el.closest('td').querySelectorAll('input[type=checkbox]').forEach(box => { if (! box.checked) box.click() })">{{ __('Tick all') }}</button>
+                                                </div>
                                             @endif
+                                            <table class="w-full text-sm">
+                                                <thead class="text-left text-xs text-muted">
+                                                    <tr>
+                                                        @if($canEdit)<th class="w-6 py-1"></th>@endif
+                                                        <th class="py-1">{{ __('Month') }}</th>
+                                                        <th class="py-1">{{ __('Who') }}</th>
+                                                        <th class="py-1 text-right">{{ __('Hours') }}</th>
+                                                        <th class="py-1 text-right">{{ __('Billed') }}</th>
+                                                        <th class="py-1 pl-4">{{ __('Note') }}</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach($lines as $line)
+                                                        <tr wire:key="ut-line-{{ $line->id }}" class="border-t border-[#eef0f2]">
+                                                            @if($canEdit)<td class="py-1"><input type="checkbox" class="accent-navy" wire:model="picked.{{ $line->id }}" aria-label="{{ __('Tick line') }}"></td>@endif
+                                                            <td class="py-1 text-muted">{{ Format::shortMonth($line->period) }}</td>
+                                                            <td class="py-1">{{ $line->staff ?? '—' }}</td>
+                                                            <td class="py-1 text-right tabular-nums">{{ $line->hours !== null ? Format::number($line->hours, 2) : '—' }}</td>
+                                                            <td class="py-1 text-right tabular-nums">{{ Format::money(Extras::lineTotal($line)) }}</td>
+                                                            <td class="py-1 pl-4 text-ink-2">{{ $line->note ?? '' }}</td>
+                                                        </tr>
+                                                    @endforeach
+                                                </tbody>
+                                            </table>
                                         </td>
                                     </tr>
                                 @endif
-                            @empty
-                                <tr>
-                                    <td colspan="6" class="py-10 text-center text-muted">{{ __('No extras in :label.', ['label' => $scope === 'year' ? $year : Format::month($period)]) }}</td>
-                                </tr>
-                            @endforelse
+                            @endforeach
                         </tbody>
-                        @if($rows->isNotEmpty())
-                            @php
-                                $rated = $scope === 'year'
-                                    ? $this->months->filter(fn ($row) => str_starts_with($row['period'], $year))
-                                    : collect([$month]);
-                                $ratedHours = $rated->sum('hours');
-                            @endphp
-                            <tfoot>
-                                <tr>
-                                    <td>{{ trans_choice(':count job|:count jobs', $rows->count()) }}</td>
-                                    <td class="is-num">{{ Extras::hours($rows->sum('hours')) }}</td>
-                                    <td class="is-num">{{ $ratedHours ? '$'.number_format($rated->sum(fn ($row) => (float) $row['hoursTotal']) / $ratedHours) : '—' }}</td>
-                                    <td class="is-num">{{ $signed($rows->sum('offLines')) }}</td>
-                                    <td class="is-num">{{ Extras::compact($rows->sum('billed')) }}</td>
-                                    <td></td>
-                                </tr>
-                            </tfoot>
-                        @endif
                     </table>
                 </div>
-            </div>
-
-            <div class="card">
-                <h2 class="section-title">{{ __('Who logged it') }}</h2>
-                <p class="section-note">{{ __('Hours on the billing lines, by person.') }}</p>
-                @php $maxHours = $people->max('hours') ?: 1; @endphp
-                <ul class="mt-4 space-y-3">
-                    @forelse($people as $person)
-                        <li wire:key="ex-person-{{ $person['staff'] }}" title="{{ implode(', ', $person['jobs']) }}">
-                            <div class="flex items-baseline justify-between gap-2 text-sm">
-                                <span class="text-ink">{{ $person['staff'] }} <span class="text-xs text-muted">{{ trans_choice(':count job|:count jobs', count($person['jobs'])) }}</span></span>
-                                <b class="font-medium tabular-nums">{{ Extras::hours($person['hours']) }} h</b>
-                            </div>
-                            <div class="mt-1 h-1.5 bg-[#edeff0]"><div class="h-full bg-navy" style="width: {{ $person['hours'] / $maxHours * 100 }}%"></div></div>
-                        </li>
-                    @empty
-                        <li class="text-sm text-muted">{{ __('No extras hours logged this month.') }}</li>
-                    @endforelse
-                </ul>
-            </div>
-        </div>
-
-        <div class="card p-0">
-            <div class="toolbar px-6 pt-5 pb-3">
-                <div>
-                    <h2 class="section-title">{{ __('Where the extras came from') }}</h2>
-                    <p class="section-note">
-                        {{ $group === 'person' ? __('Hours only: dollars are invoiced per job, not per person.') : __(':label, by job.', ['label' => $rangeLabel]) }}
-                        @if($matrix['byYear']) {{ __('Pick a shorter window above to see single months.') }} @endif
-                    </p>
-                </div>
-                <div class="flex items-center gap-3">
-                    <div class="seg">
-                        <button type="button" wire:click="setGroup('job')" @class(['is-active' => $group === 'job'])>{{ __('By job') }}</button>
-                        <button type="button" wire:click="setGroup('person')" @class(['is-active' => $group === 'person'])>{{ __('By person') }}</button>
-                    </div>
-                    @if($group === 'job')
-                        <div class="seg">
-                            <button type="button" wire:click="setMetric('hours')" @class(['is-active' => $metric === 'hours'])>{{ __('Hours') }}</button>
-                            <button type="button" wire:click="setMetric('billed')" @class(['is-active' => $metric === 'billed'])>{{ __('Dollars') }}</button>
-                        </div>
-                    @endif
-                </div>
-            </div>
-
-            @php
-                $cell = fn ($value) => $matrix['dollars'] ? Extras::compact($value) : Extras::hours($value);
-                $shade = fn ($value) => $value > 0 && $matrix['max'] ? 'background: rgba(42,120,214,'.round(0.07 + 0.48 * $value / $matrix['max'], 3).')' : '';
-            @endphp
+            @endif
+        @else
             <div class="overflow-x-auto">
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>{{ $group === 'job' ? __('Job') : __('Person') }}</th>
-                            @foreach($matrix['columns'] as $column)
-                                <th @class(['is-num', 'bg-gold-soft' => ! $matrix['byYear'] && $column === $period || $matrix['byYear'] && $column === $year])>
-                                    @if($matrix['byYear'])
-                                        {{ $column }}
-                                    @else
-                                        <button type="button" wire:click="selectMonth('{{ $column }}')">{{ \Carbon\CarbonImmutable::parse($column)->format('M y') }}</button>
-                                    @endif
-                                </th>
-                            @endforeach
-                            <th class="is-num">{{ __('Total') }}</th>
+                            <th>{{ __('Extra') }}</th>
+                            <th>{{ __('Project') }}</th>
+                            <th>{{ __('Status') }}</th>
+                            <th class="is-num">{{ __('Agreed') }}</th>
+                            <th class="is-num">{{ __('Billed') }}</th>
+                            <th class="is-num">{{ __('Left') }}</th>
+                            <th class="is-num">{{ __('Hours billed') }}</th>
+                            <th class="is-num" title="{{ __('Hours logged on its Mosaic phase, at charge-out') }}">{{ __('Logged') }}</th>
+                            <th>{{ __('Last billed') }}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($matrix['rows'] as $row)
-                            <tr wire:key="ex-matrix-{{ $group }}-{{ $row['key'] }}" @if($row['jobNumber']) class="is-link" onclick="Livewire.navigate('{{ route('projects.show', $row['jobNumber']) }}')" @endif>
-                                <td class="max-w-[16rem] truncate">{{ $row['label'] }}</td>
-                                @foreach($matrix['columns'] as $column)
-                                    @php $value = $row['cells'][$column] ?? 0; @endphp
-                                    <td class="is-num" style="{{ $shade($value) }}">
-                                        @if(abs($value) >= 0.005)
-                                            <span @class(['text-[#b33a32]' => $value < 0])>{{ $cell($value) }}</span>
+                        @forelse($this->rows as $row)
+                            @php $extra = $row['extra']; @endphp
+                            <tr wire:key="ex-{{ $extra->id }}" class="cursor-pointer" wire:click="toggle({{ $extra->id }})">
+                                <td>
+                                    <i @class(['ph text-muted', 'ph-caret-down' => $open === $extra->id, 'ph-caret-right' => $open !== $extra->id])></i>
+                                    @if($extra->code)<b class="font-medium text-gold-text">{{ $extra->code }}</b>@endif
+                                    <span class="font-medium text-ink">{{ $extra->title }}</span>
+                                </td>
+                                <td>
+                                    <a href="{{ route('projects.show', $extra->job_number) }}" wire:navigate class="hover:text-navy" x-on:click.stop>{{ $row['jobName'] ?? $extra->job_number }}</a>
+                                    <span class="ml-1 text-xs text-muted">{{ $extra->job_number }}</span>
+                                </td>
+                                <td x-on:click.stop>
+                                    @if($canEdit)
+                                        <flux:dropdown>
+                                            <button type="button" class="chip {{ $chips[$extra->status] }}">{{ ucfirst($extra->status) }} <i class="ph ph-caret-down text-[0.6rem]"></i></button>
+                                            <flux:menu>
+                                                @foreach($statuses as $status)
+                                                    <flux:menu.item wire:click="setStatus({{ $extra->id }}, '{{ $status }}')">{{ ucfirst($status) }}</flux:menu.item>
+                                                @endforeach
+                                            </flux:menu>
+                                        </flux:dropdown>
+                                    @else
+                                        <span class="chip {{ $chips[$extra->status] }}">{{ ucfirst($extra->status) }}</span>
+                                    @endif
+                                </td>
+                                <td class="is-num">
+                                    @if($row['budget'] !== null){{ Format::money($row['budget']) }}@endif
+                                    @if($extra->budget_hours !== null)<small class="block text-muted">{{ Format::number($extra->budget_hours, 1) }} h</small>@endif
+                                    @if($row['budget'] === null && $extra->budget_hours === null)<span class="text-xs text-muted">{{ __('hourly') }}</span>@endif
+                                </td>
+                                <td class="is-num">{{ $row['billed'] ? Format::money($row['billed']) : '—' }}</td>
+                                <td @class(['is-num', 'text-over' => ($row['left'] ?? 0) < 0 || ($row['hoursLeft'] ?? 0) < 0])>
+                                    @if($row['left'] !== null){{ Format::money($row['left']) }}@endif
+                                    @if($row['hoursLeft'] !== null)<small class="block">{{ Format::number($row['hoursLeft'], 1) }} h</small>@endif
+                                    @if($row['left'] === null && $row['hoursLeft'] === null)—@endif
+                                </td>
+                                <td class="is-num">{{ $row['hours'] ? Format::number($row['hours'], 1) : '—' }}</td>
+                                <td class="is-num">
+                                    @if($row['loggedHours'] !== null)
+                                        {{ Format::number($row['loggedHours'], 1) }} h
+                                        <small class="block text-muted">{{ Format::compact($row['loggedValue']) }}</small>
+                                    @else
+                                        —
+                                    @endif
+                                </td>
+                                <td class="text-muted">{{ $row['lastPeriod'] ? Format::shortMonth($row['lastPeriod']) : '—' }}</td>
+                            </tr>
+                            @if($open === $extra->id)
+                                @php $lines = $this->linesOf($extra->id); $options = $this->extrasFor($extra->job_number); @endphp
+                                <tr wire:key="ex-{{ $extra->id }}-open">
+                                    <td colspan="9" class="bg-[#fafbfb] px-6 py-4">
+                                        <div class="mb-3 flex flex-wrap items-start justify-between gap-3">
+                                            <p class="max-w-[60ch] text-sm text-ink-2">{{ $extra->note ?: __('No note.') }}</p>
+                                            @if($canEdit)
+                                                <button type="button" class="btn-secondary" wire:click="edit({{ $extra->id }})"><i class="ph ph-pencil-simple"></i>{{ __('Edit extra') }}</button>
+                                            @endif
+                                        </div>
+                                        @if($lines->isEmpty())
+                                            <p class="text-sm text-muted">{{ __('No hourly lines tagged to this extra yet. Tag them from Untagged.') }}</p>
+                                        @else
+                                            <table class="w-full text-sm">
+                                                <thead class="text-left text-xs text-muted">
+                                                    <tr>
+                                                        <th class="py-1">{{ __('Month') }}</th>
+                                                        <th class="py-1">{{ __('Who') }}</th>
+                                                        <th class="py-1 text-right">{{ __('Hours') }}</th>
+                                                        <th class="py-1 text-right">{{ __('Billed') }}</th>
+                                                        <th class="py-1 pl-4">{{ __('Note') }}</th>
+                                                        @if($canEdit)<th class="py-1">{{ __('Tagged to') }}</th>@endif
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach($lines as $line)
+                                                        <tr wire:key="ex-line-{{ $line->id }}" class="border-t border-[#eef0f2]">
+                                                            <td class="py-1 text-muted">{{ Format::shortMonth($line->period) }}</td>
+                                                            <td class="py-1">{{ $line->staff ?? '—' }}</td>
+                                                            <td class="py-1 text-right tabular-nums">{{ $line->hours !== null ? Format::number($line->hours, 2) : '—' }}</td>
+                                                            <td class="py-1 text-right tabular-nums">{{ Format::money(Extras::lineTotal($line)) }}</td>
+                                                            <td class="py-1 pl-4 text-ink-2">{{ $line->note ?? '' }}</td>
+                                                            @if($canEdit)
+                                                                <td class="py-1">
+                                                                    <select class="select py-0.5 text-xs" wire:change="tagLine({{ $line->id }}, $event.target.value)" aria-label="{{ __('Retag line') }}">
+                                                                        @foreach($options as $option)
+                                                                            <option value="{{ $option->id }}" @selected($option->id === $extra->id)>{{ $option->label() }}</option>
+                                                                        @endforeach
+                                                                        <option value="">{{ __('Untagged') }}</option>
+                                                                    </select>
+                                                                </td>
+                                                            @endif
+                                                        </tr>
+                                                    @endforeach
+                                                </tbody>
+                                            </table>
                                         @endif
                                     </td>
-                                @endforeach
-                                <td class="is-num font-medium">{{ $cell($row['total']) }}</td>
-                            </tr>
+                                </tr>
+                            @endif
                         @empty
-                            <tr><td colspan="{{ count($matrix['columns']) + 2 }}" class="py-10 text-center text-muted">{{ __('No extras in this window.') }}</td></tr>
+                            <tr>
+                                <td colspan="9" class="py-10 text-center text-muted">{{ __('No extras match.') }}</td>
+                            </tr>
                         @endforelse
                     </tbody>
-                    @if($matrix['count'])
-                        <tfoot>
-                            <tr>
-                                <td>
-                                    @if($matrix['count'] > Extras::MatrixTop)
-                                        <button type="button" class="text-navy hover:underline" wire:click="$toggle('matrixAll')">
-                                            {{ $matrixAll ? __('Show the top :count', ['count' => Extras::MatrixTop]) : __('Show all :count', ['count' => $matrix['count']]) }}
-                                        </button>
-                                    @else
-                                        {{ __('Total') }}
-                                    @endif
-                                </td>
-                                @foreach($matrix['columns'] as $column)
-                                    <td class="is-num">{{ $cell($matrix['totals'][$column]) }}</td>
-                                @endforeach
-                                <td class="is-num">{{ $cell($matrix['total']) }}</td>
-                            </tr>
-                        </tfoot>
-                    @endif
                 </table>
             </div>
-        </div>
+        @endif
+    </div>
 
-        <div class="card p-0">
-            <div class="px-6 pt-5 pb-3">
-                <h2 class="section-title">{{ __('The ledger') }}</h2>
-                <p class="section-note">{{ __('One row per month of the window, newest first. Click a month to open it.') }}</p>
-            </div>
-            @php
-                $ledger = $window->reverse()->values();
-                $off = fn ($row) => (float) $row['billed'] - (float) $row['linesTotal'];
-                $ledgerBilled = $ledger->sum(fn ($row) => (float) $row['billed']);
-                $ledgerTotal = $ledger->sum(fn ($row) => (float) $row['totalBilled']);
-            @endphp
-            <div class="overflow-x-auto">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>{{ __('Month') }}</th>
-                            <th class="is-num">{{ __('Hours') }}</th>
-                            <th class="is-num">{{ __('$/hr') }}</th>
-                            <th class="is-num" title="{{ __('Flat amounts, caps, top-ups and credits: invoiced as hourly but not from the lines.') }}">{{ __('Off the timesheets') }}</th>
-                            <th class="is-num" title="{{ __('What was invoiced as hourly: the Monthly Billing Report\'s Total Extras.') }}">{{ __('Invoiced') }}</th>
-                            <th class="is-num" title="{{ __('Share of everything billed that month, phase draws included.') }}">{{ __('Of billing') }}</th>
-                            <th class="is-num">{{ __('Jobs') }}</th>
-                            <th class="is-num">{{ __('People') }}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($ledger as $row)
-                            <tr wire:key="ex-ledger-{{ $row['period'] }}" @class(['is-link', 'bg-gold-soft' => $row['period'] === $period]) wire:click="selectMonth('{{ $row['period'] }}')">
-                                <td>
-                                    <b class="font-medium">{{ Format::month($row['period']) }}</b>
-                                    @if($row['status'] === 'closed') <span class="chip"><i class="ph ph-lock-simple"></i>{{ __('closed') }}</span> @endif
-                                </td>
-                                <td class="is-num">{!! $row['hours'] ? e(Extras::hours($row['hours'])) : '<span class="empty">—</span>' !!}</td>
-                                <td class="is-num">{!! $row['rate'] !== null ? '$'.e(number_format($row['rate'])) : '<span class="empty">—</span>' !!}</td>
-                                <td class="is-num">
-                                    @if(abs($off($row)) >= 0.5)
-                                        <span @class(['text-[#20825c]' => $off($row) > 0, 'text-[#b33a32]' => $off($row) < 0])>{{ $signed($off($row)) }}</span>
-                                    @endif
-                                </td>
-                                <td class="is-num font-medium">{{ Extras::compact($row['billed']) }}</td>
-                                <td class="is-num">{{ (float) $row['totalBilled'] ? Format::pct((float) $row['billed'] / (float) $row['totalBilled']) : '—' }}</td>
-                                <td class="is-num">{{ $row['jobs'] ?: '' }}</td>
-                                <td class="is-num">{{ $row['people'] ?: '' }}</td>
-                            </tr>
+    <p class="text-xs text-muted">
+        {{ __('Agreed is the amount or hours the extra was set at; an extra with neither is open-ended hourly work. Billed is the total of the hourly lines tagged to it, from month end. Logged is the time on its Mosaic phase at charge-out. Extras with a Mosaic number came in from Mosaic, where "not started" was taken as proposed.') }}
+    </p>
+
+    <x-modal wire:model="editorOpen" :title="$editingId ? __('Edit extra') : __('New extra')" max-width="640px">
+        <form wire:submit="save">
+            <div class="grid gap-3 sm:grid-cols-[1fr_8rem]">
+                <div>
+                    <label class="field-label" for="ex-job">{{ __('Project') }}</label>
+                    <select id="ex-job" wire:model="form.job_number" class="field-input">
+                        <option value="">{{ __('Pick a project…') }}</option>
+                        @foreach($jobNames as $number => $name)
+                            <option value="{{ $number }}">{{ $number }} {{ $name }}</option>
                         @endforeach
-                    </tbody>
-                    <tfoot>
-                        <tr>
-                            <td>{{ trans_choice(':count month|:count months', $ledger->count()) }}</td>
-                            <td class="is-num">{{ Format::number($ledger->sum('hours')) }}</td>
-                            <td class="is-num">{{ Extras::rateOf($ledger) ? '$'.number_format(Extras::rateOf($ledger)) : '—' }}</td>
-                            <td class="is-num">{{ $signed($ledger->sum($off)) }}</td>
-                            <td class="is-num">{{ Extras::compact($ledgerBilled) }}</td>
-                            <td class="is-num">{{ $ledgerTotal ? Format::pct($ledgerBilled / $ledgerTotal) : '—' }}</td>
-                            <td></td>
-                            <td></td>
-                        </tr>
-                    </tfoot>
-                </table>
+                    </select>
+                </div>
+                <div>
+                    <label class="field-label" for="ex-code">{{ __('Number') }}</label>
+                    <input id="ex-code" type="text" wire:model="form.code" placeholder="8040-05" class="field-input">
+                </div>
             </div>
-        </div>
+            <div class="mt-3">
+                <label class="field-label" for="ex-title">{{ __('Title') }}</label>
+                <input id="ex-title" type="text" maxlength="200" wire:model="form.title" class="field-input">
+            </div>
+            <div class="mt-3 grid gap-3 sm:grid-cols-3">
+                <div>
+                    <label class="field-label" for="ex-status">{{ __('Status') }}</label>
+                    <select id="ex-status" wire:model="form.status" class="field-input">
+                        @foreach($statuses as $status)
+                            <option value="{{ $status }}">{{ ucfirst($status) }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="field-label" for="ex-amount">{{ __('Agreed amount') }}</label>
+                    <input id="ex-amount" type="text" inputmode="decimal" wire:model="form.budget_amount" placeholder="$" class="field-input">
+                </div>
+                <div>
+                    <label class="field-label" for="ex-hours">{{ __('or hours') }}</label>
+                    <input id="ex-hours" type="text" inputmode="decimal" wire:model="form.budget_hours" placeholder="h" class="field-input">
+                </div>
+            </div>
+            <div class="mt-3">
+                <label class="field-label" for="ex-note">{{ __('Note') }}</label>
+                <textarea id="ex-note" rows="3" wire:model="form.note" class="field-input"></textarea>
+            </div>
+            @if(! $editingId && array_filter($picked))
+                <p class="mt-3 text-xs text-ink-2">{{ trans_choice('The :count ticked line will be tagged to it.|The :count ticked lines will be tagged to it.', count(array_filter($picked))) }}</p>
+            @endif
+            @error('extra') <p class="error-note mt-3">{{ $message }}</p> @enderror
 
-        <div class="notice">
-            <p class="font-medium">{{ __('Where the figures come from') }}</p>
-            <ul class="mt-1 list-disc space-y-1 pl-5">
-                <li>{{ __('Hours are the staff lines typed at month end; dollars are what was invoiced as hourly billing (time and materials, which the workbook calls Extras — not change orders).') }}</li>
-                <li>{{ __('$/hr divides what the lines with hours bill by those hours, so flat-fee and capped months do not read as rates nobody charged.') }}</li>
-                <li>{{ __('A line with hours and an amount of 0 is time deliberately not billed: it stays in the hours and is counted as written-off hours.') }}</li>
-                <li>{{ __('Off the timesheets is what was invoiced as hourly less what the lines add up to: flat amounts, caps, top-ups and credits.') }}</li>
-            </ul>
-        </div>
-    @endif
+            <div class="mt-6 flex items-center justify-between gap-2">
+                <div>
+                    @if($editingId)
+                        <button type="button" class="btn-danger text-sm" wire:click="delete" wire:confirm="{{ __('Delete this extra? Its hourly lines go back to untagged.') }}">{{ __('Delete') }}</button>
+                    @endif
+                </div>
+                <div class="flex gap-2">
+                    <button type="button" class="btn-secondary" x-on:click="$wire.editorOpen = false">{{ __('Cancel') }}</button>
+                    <button type="submit" class="btn">{{ $editingId ? __('Save changes') : __('Add extra') }}</button>
+                </div>
+            </div>
+        </form>
+    </x-modal>
 </div>

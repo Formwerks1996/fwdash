@@ -59,11 +59,17 @@ const charts = {
         },
     }),
 
-    overview: ({ labels, actual, runRate, cost, profit }) => ({
+    overview: ({ labels, actual, runRate, cost, profit, projected = [], projectedCost = [] }) => ({
         data: {
             labels,
             datasets: [
                 { type: 'line', label: 'Profit', data: profit, borderColor: '#2f8a67', backgroundColor: '#2f8a67', borderWidth: 2, pointRadius: 3, tension: 0, order: 0 },
+                ...(projected.some((value) => value !== null)
+                    ? [{ type: 'line', label: 'Projected billing', data: projected, borderColor: '#00263E', backgroundColor: '#fff', borderDash: [5, 4], borderWidth: 1.5, pointRadius: 4, pointBorderWidth: 1.5, showLine: true, spanGaps: true, tension: 0, order: 0 }]
+                    : []),
+                ...(projectedCost.some((value) => value !== null)
+                    ? [{ type: 'line', label: 'Projected cost', data: projectedCost, borderColor: '#c4694a', backgroundColor: '#fff', borderDash: [5, 4], borderWidth: 1.5, pointRadius: 4, pointBorderWidth: 1.5, spanGaps: true, tension: 0, order: 0 }]
+                    : []),
                 { type: 'bar', label: 'Billed', data: actual, backgroundColor: '#00263E', stack: 'billed', maxBarThickness: 26, order: 1 },
                 { type: 'bar', label: 'Run rate', data: runRate, backgroundColor: '#dfe4e9', stack: 'billed', maxBarThickness: 26, order: 1 },
                 { type: 'bar', label: 'Cost', data: cost, backgroundColor: '#c4694a', stack: 'cost', maxBarThickness: 26, order: 1 },

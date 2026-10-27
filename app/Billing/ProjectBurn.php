@@ -4,6 +4,7 @@ namespace App\Billing;
 
 use App\Enums\Phase;
 use App\Models\AppSetting;
+use App\Models\ProjectPhaseHours;
 use App\Models\ProjectStatus;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
@@ -15,11 +16,17 @@ use Carbon\CarbonImmutable;
  * no person), so "budget used" is every hour logged priced at one plan rate,
  * against the phase fees. The plan rate is a value, not anyone's pay.
  *
- * One rule colours both Project Alerts and PM Desk, so they never disagree:
+ * One rule colours both Project Alerts and the Projects cards, so they never disagree:
  *   over  : hours have used the whole fee
  *   watch : 80% used, or hours running more than 15 points ahead of billing
  *   ok    : otherwise
  * plus "none" (no fee to measure against) and "idle" (no hours yet).
+ *
+ * Mosaic's pull does say which phase each hour went to and at what charge-out
+ * rate, so each phase also carries "spent": its hours at charge-out, to set
+ * against its fee. Hours with no rate are priced at the plan rate. Time on a
+ * Mosaic phase with no fee (hourly work, extras) is "other": counted, but not
+ * against the fee, since it is billed or written off apart from it.
  */
 
 /**
@@ -27,8 +34,8 @@ use Carbon\CarbonImmutable;
  *     jobNumber: string, jobName: string, developer: ?string, division: ?string, lead: ?string,
  *     status: string, fee: ?float, billedFee: float, progress: ?float, hours: float, feeHours: ?float, used: ?float,
  *     level: string, hoursByMonth: array<string, float>, lastHoursPeriod: ?string, currentPhase: ?string,
- *     phasesBilled: int, phaseCount: int,
- *     phases: array<int, array{phase: string, fee: float, billed: float, progress: float, feeHours: float, state: string}>
+ *     phasesBilled: int, phaseCount: int, spent: ?float, spentHours: float, otherSpent: float, otherHours: float, otherPhases: array<int, array{name: string, hours: float, spent: float}>,
+ *     phases: array<int, array{phase: string, fee: float, billed: float, progress: float, feeHours: float, state: string, spent: ?float, spentHours: float}>
  * }
  */
 class ProjectBurn
@@ -48,6 +55,9 @@ class ProjectBurn
 
     /** @var array<string, string>|null */
     protected ?array $statusOverrides = null;
+
+    /** @var array<string, array<string, array{hours: float, spent: float, names: array<int, array{name: string, hours: float, spent: float}>}>>|null job => phase code ("" for none) => Mosaic totals */
+    protected ?array $phaseHours = null;
 
     /** @var array<string, Burn> */
     protected array $cache = [];
@@ -138,6 +148,27 @@ class ProjectBurn
         return ($used < 1 ? floor($used * 100) : round($used * 100)).'%';
     }
 
+    /** @return array<string, array{hours: float, spent: float, names: array<int, array{name: string, hours: float, spent: float}>}> phase code ("" for none) => hours, charge-out and Mosaic phase names */
+    public function phaseHours(string $jobNumber): array
+    {
+        if ($this->phaseHours === null) {
+            $this->phaseHours = [];
+            $rate = $this->planRate();
+
+            foreach (ProjectPhaseHours::all() as $row) {
+                $slot = &$this->phaseHours[$row->job_number][$row->phase_code ?? ''];
+                $slot ??= ['hours' => 0.0, 'spent' => 0.0, 'names' => []];
+                $spent = (float) $row->charge_out + (float) $row->unrated_hours * $rate;
+                $slot['hours'] += (float) $row->hours;
+                $slot['spent'] += $spent;
+                $slot['names'][] = ['name' => $row->mosaic_phase, 'hours' => (float) $row->hours, 'spent' => $spent];
+                unset($slot);
+            }
+        }
+
+        return $this->phaseHours[$jobNumber] ?? [];
+    }
+
     /** @return Burn */
     public function for(string $jobNumber): array
     {
@@ -166,6 +197,9 @@ class ProjectBurn
         $feeHours = $fee ? $fee / $rate : null;
         $used = $feeHours ? $hours / $feeHours : null;
         $hoursByMonth = $this->engine->hoursByPeriod($jobNumber);
+        $logged = $this->phaseHours($jobNumber);
+        $onPhases = collect($logged)->only($phases->pluck('phase')->all());
+        $other = collect($logged)->except($phases->pluck('phase')->all());
 
         return $this->cache[$jobNumber] = [
             'jobNumber' => $jobNumber,
@@ -186,11 +220,18 @@ class ProjectBurn
             'currentPhase' => $currentPhase,
             'phasesBilled' => $phases->filter(fn (array $row) => $row['billed'] >= $row['fee'] - 0.005)->count(),
             'phaseCount' => $phases->count(),
+            'spent' => $logged ? (float) $onPhases->sum('spent') : null,
+            'spentHours' => (float) $onPhases->sum('hours'),
+            'otherSpent' => (float) $other->sum('spent'),
+            'otherHours' => (float) $other->sum('hours'),
+            'otherPhases' => $other->pluck('names')->flatten(1)->sortByDesc('hours')->values()->all(),
             'phases' => $phases
                 ->map(fn (array $row) => [
                     ...$row,
                     'progress' => min(1.0, $row['billed'] / $row['fee']),
                     'feeHours' => $row['fee'] / $rate,
+                    'spent' => $logged ? ($onPhases[$row['phase']]['spent'] ?? 0.0) : null,
+                    'spentHours' => $onPhases[$row['phase']]['hours'] ?? 0.0,
                     'state' => match (true) {
                         $row['billed'] >= $row['fee'] - 0.005 => 'complete',
                         $row['phase'] === $currentPhase => 'current',

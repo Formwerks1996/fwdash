@@ -8,13 +8,16 @@ use App\Actions\Billing\SaveProjectAction;
 use App\Actions\Billing\SetPhaseFeeAction;
 use App\Actions\Team\AssignProjectAction;
 use App\Billing\BillingEngine;
+use App\Billing\ProjectBurn;
 use App\Enums\Permission;
 use App\Models\MonthEntry;
 use App\Models\Payment;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
+use App\Models\ProjectPhaseHours;
 use App\Models\ProjectRole;
 use App\Models\TeamMember;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Livewire\Attributes\Computed;
@@ -214,7 +217,35 @@ class ProjectsShow extends Component
             'roles' => ProjectRole::byJob([$this->jobNumber])[$this->jobNumber] ?? [ProjectRole::Lead => [], ProjectRole::ProjectManager => []],
             'team' => TeamMember::active()->orderBy('name')->pluck('name'),
             'chart' => $this->chartData(),
+            ...$this->mosaicSpend(),
         ])->title($this->summary['jobName']);
+    }
+
+    /**
+     * Hours from Mosaic at charge-out: totalled per billing phase, and listed
+     * one by one for the Mosaic phases that have no fee row on this job.
+     *
+     * @return array{spentByPhase: array<string, array{hours: float, spent: float, names: array<int, string>}>, otherPhases: Collection<int, array{name: string, hours: float, spent: float}>}
+     */
+    protected function mosaicSpend(): array
+    {
+        $burn = app(ProjectBurn::class);
+        $feePhases = collect($this->fees)->pluck('phase')->all();
+        $rate = $burn->planRate();
+
+        return [
+            'spentByPhase' => $burn->phaseHours($this->jobNumber),
+            'otherPhases' => ProjectPhaseHours::where('job_number', $this->jobNumber)
+                ->get()
+                ->reject(fn (ProjectPhaseHours $row) => in_array($row->phase_code, $feePhases, true))
+                ->map(fn (ProjectPhaseHours $row) => [
+                    'name' => $row->mosaic_phase,
+                    'hours' => (float) $row->hours,
+                    'spent' => (float) $row->charge_out + (float) $row->unrated_hours * $rate,
+                ])
+                ->sortBy('name', SORT_NATURAL)
+                ->values(),
+        ];
     }
 
     /** @return array{labels: array<int, string>, billed: array<int, float>, contract: float} */

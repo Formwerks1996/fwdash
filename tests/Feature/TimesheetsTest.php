@@ -22,11 +22,10 @@ it('lets every role open their timesheet', function (string $role) {
     $this->actingAs($user)->get(route('timesheets'))->assertOk()->assertSee('Timesheets');
 })->with(['admin', 'manager', 'staff']);
 
-it('limits staff to their projects, PM Desk and timesheets', function () {
+it('limits staff to their projects and timesheets', function () {
     $staff = User::factory()->staff()->create();
 
     $this->actingAs($staff)->get(route('timesheets'))->assertOk()
-        ->assertSee(route('pm-desk'))
         ->assertSee(route('projects.index'))
         ->assertDontSee(route('overview'));
 

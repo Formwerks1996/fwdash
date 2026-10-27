@@ -22,7 +22,7 @@ use Livewire\Component;
 /**
  * The signed-in person's week, read from the Team Lineup: who they go to and
  * the projects they are on, each with the people it sits under. Read-only;
- * the lineup and the PM Desk are where these are set.
+ * the lineup and the project page are where these are set.
  *
  * @property-read ?TeamMember $me
  * @property-read array<string, TeamMember> $people
@@ -74,7 +74,7 @@ class MyWeek extends Component
 
     /**
      * The project the lineup tags this person with this week, then the ones
-     * they are assigned to on the PM Desk and the active ones they manage.
+     * they are assigned to and the active ones they manage.
      *
      * @return Collection<int, array{project: Project, thisWeek: bool, assigned: bool, managing: bool, pms: array<int, string>, partner: ?string, with: array<int, string>}>
      */
@@ -194,7 +194,7 @@ class MyWeek extends Component
     }
 
     /**
-     * The job's project manager and its PMs on the PM Desk, other than this
+     * The job's project manager and its PMs, other than this
      * person; for the project tagged this week with none set, the person this
      * one goes to in the lineup.
      *

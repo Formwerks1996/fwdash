@@ -6,6 +6,7 @@ use App\Livewire\Overview;
 use App\Models\AppSetting;
 use App\Models\BillingPeriod;
 use App\Models\MonthlyCost;
+use App\Models\MonthlyProjection;
 use App\Models\Project;
 use App\Models\StaffCostRate;
 use App\Models\StaffMonthHours;
@@ -42,7 +43,7 @@ beforeEach(function () {
 });
 
 it('works out profit only over months that have both billing and cost', function () {
-    $figures = Livewire::test(Overview::class, ['year' => 2026])->instance()->figures;
+    $figures = Livewire::test(Overview::class, ['year' => 2026, 'span' => 'year'])->instance()->figures;
 
     expect($figures)->toMatchArray([
         'ytd' => 16000.0,
@@ -55,6 +56,23 @@ it('works out profit only over months that have both billing and cost', function
         'uncosted' => ['Jun'],
         'costsWaiting' => ['Jul'],
     ]);
+});
+
+it('opens on the latest billed quarter and switches quarter or to the whole year', function () {
+    $component = Livewire::test(Overview::class, ['year' => 2026])
+        ->assertSet('span', 'quarter')
+        ->assertSet('quarter', 2)
+        ->assertSee('Q2 2026')
+        ->assertSee('quarter to date');
+
+    expect($component->instance()->figures)->toMatchArray(['ytd' => 16000.0, 'spanMonths' => 3, 'costsWaiting' => []])
+        ->and($component->instance()->figures['chart']['labels'])->toBe(['Apr', 'May', 'Jun']);
+
+    $component->call('setQuarter', 3);
+    expect($component->instance()->figures)->toMatchArray(['ytd' => 0.0, 'costsWaiting' => ['Jul']]);
+
+    $component->call('setSpan', 'year')->assertSee('year to date');
+    expect($component->instance()->figures)->toMatchArray(['ytd' => 16000.0, 'spanMonths' => 12]);
 });
 
 it('counts what is billed and not yet paid on active jobs as owed, up to the latest payment', function () {
@@ -133,4 +151,35 @@ it('shows each month\'s profit on Month End', function () {
 
     expect($june)->toMatchArray(['key' => '2026-06', 'total' => null, 'profit' => null])
         ->and($withSheet)->toMatchArray(['basis' => 'sheet', 'total' => 4500.0, 'profit' => 1500.0, 'margin' => 0.25]);
+});
+
+it('takes projections for the quarter and sets them against what came in', function () {
+    $component = Livewire::test(Overview::class, ['year' => 2026, 'quarter' => 2])
+        ->assertSee('Projections')
+        ->call('saveProjection', '2026-05', 'billed', '$12,000')
+        ->call('saveProjection', '2026-05', 'cost', '7,000')
+        ->call('saveProjection', '2026-06', 'billed', 'lots')
+        ->assertHasErrors('projection');
+
+    expect(MonthlyProjection::sole()->only(['month', 'billed', 'cost']))->toBe(['month' => '2026-05', 'billed' => '12000.00', 'cost' => '7000.00']);
+
+    $figures = $component->instance()->figures;
+    expect($figures['chart']['projected'])->toBe([null, 12000.0, null])
+        ->and($figures['projections'])->toMatchArray(['billed' => 12000.0, 'cost' => 7000.0]);
+
+    $component->assertSee('−$2,000');
+
+    $component->call('saveProjection', '2026-05', 'billed', '')->call('saveProjection', '2026-05', 'cost', '');
+    expect(MonthlyProjection::count())->toBe(0);
+    $this->assertDatabaseHas('audit_logs', ['table_name' => 'monthly_projections', 'action' => 'delete']);
+});
+
+it('needs edit billing to set a projection', function () {
+    $viewer = User::factory()->staff()->create();
+    $viewer->givePermissionTo(Permission::ViewFinancials->value);
+
+    Livewire::actingAs($viewer)
+        ->test(Overview::class, ['year' => 2026])
+        ->call('saveProjection', '2026-05', 'billed', '100')
+        ->assertForbidden();
 });

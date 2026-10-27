@@ -290,7 +290,7 @@
             <summary class="flex cursor-pointer items-center justify-between gap-4 px-6 py-4">
                 <span>
                     <span class="section-title">{{ __('Roster') }}</span>
-                    <span class="ml-2 text-xs text-muted">{{ __('Who appears on the lineup and has a PM Desk. :count people.', ['count' => $members->where('active', true)->count()]) }}</span>
+                    <span class="ml-2 text-xs text-muted">{{ __('Who appears on the lineup. :count people.', ['count' => $members->where('active', true)->count()]) }}</span>
                 </span>
                 <button type="button" class="btn-secondary" wire:click.prevent="addPerson"><i class="ph ph-plus"></i>{{ __('Add person') }}</button>
             </summary>
@@ -360,7 +360,7 @@
                     <div class="sm:col-span-2">
                         <label class="field-label" for="tm-email">{{ __('Email') }}</label>
                         <input id="tm-email" type="email" wire:model="form.email" class="field-input" placeholder="name@formwerks.ca">
-                        <p class="mt-1 text-xs text-muted">{{ __('Their Microsoft sign-in, so PM Desk opens on their own desk.') }}</p>
+                        <p class="mt-1 text-xs text-muted">{{ __('Their Microsoft sign-in, so Projects opens on their own projects.') }}</p>
                         @error('form.email') <p class="error-note mt-1">{{ $message }}</p> @enderror
                     </div>
                     <div>

@@ -63,6 +63,7 @@ class DashboardWorkbookImporter
 
         DB::transaction(function () use ($businessDevelopment, &$businessDevelopmentCounts) {
             $preservedNotes = $this->preservedNotes();
+            $preservedTags = $this->preservedTags();
 
             foreach (self::ReplacedTables as $table) {
                 DB::table($table)->delete();
@@ -75,6 +76,7 @@ class DashboardWorkbookImporter
             }
 
             $this->restoreNotes($preservedNotes);
+            $this->restoreTags($preservedTags);
 
             if ($this->costs !== null) {
                 DB::table('monthly_cost_notes')->delete();
@@ -602,6 +604,40 @@ class DashboardWorkbookImporter
                 $this->costs['notes'][] = ['month' => $month, 'note' => $note];
             }
         }
+    }
+
+    /**
+     * Which extra each hourly line was tagged to. The upload rewrites every
+     * line, so a line is known again by its month, job, person, hours and note.
+     *
+     * @return array<string, int>
+     */
+    protected function preservedTags(): array
+    {
+        return DB::table('hour_lines')
+            ->whereNotNull('extra_id')
+            ->get()
+            ->mapWithKeys(fn (object $line) => [$this->lineKey($line) => (int) $line->extra_id])
+            ->all();
+    }
+
+    /** @param  array<string, int>  $tags */
+    protected function restoreTags(array $tags): void
+    {
+        if ($tags === []) {
+            return;
+        }
+
+        DB::table('hour_lines')
+            ->get()
+            ->filter(fn (object $line) => isset($tags[$this->lineKey($line)]))
+            ->groupBy(fn (object $line) => $tags[$this->lineKey($line)])
+            ->each(fn ($lines, int $extraId) => DB::table('hour_lines')->whereIn('id', $lines->pluck('id'))->update(['extra_id' => $extraId]));
+    }
+
+    protected function lineKey(object $line): string
+    {
+        return implode('|', [substr((string) $line->period, 0, 10), $line->job_number, $line->staff, Money::round($line->hours ?? 0, 4), $line->note]);
     }
 
     /**

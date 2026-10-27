@@ -3,13 +3,18 @@
 namespace App\Livewire\Projects;
 
 use App\Actions\Billing\SetProjectStatusAction;
+use App\Actions\Team\SavePmTaskAction;
 use App\Billing\BillingEngine;
+use App\Billing\ProjectBurn;
 use App\Enums\Permission;
 use App\Enums\Role;
 use App\Livewire\Concerns\SortsRows;
+use App\Models\PmTask;
 use App\Models\Project;
 use App\Models\ProjectRole;
 use App\Models\ProjectStatus;
+use App\Models\TeamMember;
+use App\Support\LineupTree;
 use App\Support\RateBand;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -20,9 +25,17 @@ use Livewire\Attributes\Url;
 use Livewire\Component;
 
 /**
+ * Every project the viewer may see, as a sortable list or as cards that show
+ * how far through its fee each one is, with its phases and tasks.
+ *
  * @property-read Collection<int, array<string, mixed>> $projects
  * @property-read Collection<int, array<string, mixed>> $rows
  * @property-read array<string, mixed> $rates
+ * @property-read array<string, TeamMember> $people
+ * @property-read array<string, Burn> $burns
+ * @property-read array<string, array<int, PmTask>> $tasks
+ *
+ * @phpstan-import-type Burn from ProjectBurn
  */
 #[Title('Projects')]
 class ProjectsIndex extends Component
@@ -48,9 +61,20 @@ class ProjectsIndex extends Component
     #[Url(as: 'show')]
     public string $scope = 'mine';
 
+    /** "list" or "cards". */
+    #[Url]
+    public string $view = 'list';
+
+    /** One person's projects, by roster name; managers and admins only. */
+    #[Url]
+    public string $person = '';
+
     public string $sort = 'lastActivity';
 
     public string $direction = 'desc';
+
+    /** @var array<string, array{title?: string, assignee?: string, due_on?: string}> keyed by taskKey() */
+    public array $newTask = [];
 
     /** @var array<int, string> */
     protected array $textColumns = ['jobName', 'developer', 'division', 'leads', 'pms', 'status'];
@@ -73,7 +97,7 @@ class ProjectsIndex extends Component
             ->groupBy(fn (array $key) => $key[1])
             ->map(fn (Collection $keys) => $keys->max(fn (array $key) => $key[0]));
 
-        $visible = $this->showsAll() ? null : auth()->user()->ownJobNumbers();
+        $visible = $this->personMember()?->jobNumbers() ?? ($this->showsAll() ? null : auth()->user()->ownJobNumbers());
         $roles = ProjectRole::byJob($visible);
 
         return collect($engine->allSummaries())
@@ -152,6 +176,37 @@ class ProjectsIndex extends Component
         ];
     }
 
+    /** @return array<string, TeamMember> */
+    #[Computed]
+    public function people(): array
+    {
+        return LineupTree::roster();
+    }
+
+    /** @return array<string, Burn> fee burn for the cards on show */
+    #[Computed]
+    public function burns(): array
+    {
+        $burn = app(ProjectBurn::class);
+
+        return $this->rows->mapWithKeys(fn (array $row) => [$row['jobNumber'] => $burn->for($row['jobNumber'])])->all();
+    }
+
+    /** @return array<string, array<int, PmTask>> open first, then by due date */
+    #[Computed]
+    public function tasks(): array
+    {
+        return PmTask::whereIn('job_number', $this->rows->pluck('jobNumber'))
+            ->orderByRaw('done_at is not null')
+            ->orderByRaw('due_on is null')
+            ->orderBy('due_on')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('job_number')
+            ->map(fn (Collection $tasks) => $tasks->all())
+            ->all();
+    }
+
     /** Admins always see every project; managers may switch to all; staff only ever see their own. */
     public function showsAll(): bool
     {
@@ -162,10 +217,33 @@ class ProjectsIndex extends Component
         };
     }
 
+    public function canPickPerson(): bool
+    {
+        return auth()->user()->effectiveRole() !== Role::Staff;
+    }
+
+    /** The person picked, when the viewer may pick one and the name is on the roster. */
+    public function personMember(): ?TeamMember
+    {
+        return $this->person !== '' && $this->canPickPerson() ? ($this->people[$this->person] ?? null) : null;
+    }
+
     public function setScope(string $scope): void
     {
         $this->scope = $scope === 'all' ? 'all' : 'mine';
+        $this->person = '';
 
+        unset($this->projects, $this->rows, $this->rates);
+    }
+
+    /** The card view's sort picker: text runs A to Z, figures largest first. */
+    public function updatedSort(): void
+    {
+        $this->direction = in_array($this->sort, $this->textColumns, true) ? 'asc' : 'desc';
+    }
+
+    public function updatedPerson(): void
+    {
         unset($this->projects, $this->rows, $this->rates);
     }
 
@@ -180,10 +258,52 @@ class ProjectsIndex extends Component
         unset($this->projects);
     }
 
+    public function addTask(string $jobNumber, SavePmTaskAction $saveTask): void
+    {
+        $this->authorize(Permission::EditTeam->value);
+
+        $key = self::taskKey($jobNumber);
+        $draft = $this->newTask[$key] ?? [];
+
+        $this->resetValidation();
+        $saveTask->add($jobNumber, (string) ($draft['title'] ?? ''), ($draft['assignee'] ?? '') ?: null, ($draft['due_on'] ?? '') ?: null);
+
+        unset($this->newTask[$key], $this->tasks);
+    }
+
+    public function toggleTask(int $id, SavePmTaskAction $saveTask): void
+    {
+        $this->authorize(Permission::EditTeam->value);
+
+        $saveTask->toggle(PmTask::findOrFail($id));
+
+        unset($this->tasks);
+    }
+
+    public function deleteTask(int $id, SavePmTaskAction $saveTask): void
+    {
+        $this->authorize(Permission::EditTeam->value);
+
+        $saveTask->delete(PmTask::findOrFail($id));
+
+        unset($this->tasks);
+    }
+
+    public static function taskKey(string $jobNumber): string
+    {
+        return 'job'.preg_replace('/[^A-Za-z0-9]/', '', $jobNumber);
+    }
+
     public function render(): View
     {
+        $burn = app(ProjectBurn::class);
+
         return view('livewire.projects.index', [
             'canSwitchScope' => auth()->user()->effectiveRole() === Role::Manager,
+            'canPickPerson' => $this->canPickPerson(),
+            'picked' => $this->personMember(),
+            'asOf' => $burn->asOf(),
+            'planRate' => $burn->planRate(),
             'groups' => self::Groups,
             'divisions' => $this->projects->pluck('division')->filter()->unique()->sort()->values(),
             'statuses' => ProjectStatus::Statuses,

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Livewire\Team\TeamLineup;
+use App\Support\LineupTree;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -9,7 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
 /**
- * Someone who can appear on the Team Lineup and has a PM Desk. Keyed by their
+ * Someone who can appear on the Team Lineup. Keyed by their
  * staff name, never by staff.id: the workbook upload replaces staff.
  *
  * @property int $id
@@ -74,5 +76,23 @@ class TeamMember extends Model
             'pm' => 'pm',
             default => $this->grp ?? 'other',
         };
+    }
+
+    /**
+     * The projects that are this person's own: the ones they are assigned to,
+     * the ones they lead or manage, and this week's Team Lineup project.
+     *
+     * @return array<int, string>
+     */
+    public function jobNumbers(): array
+    {
+        $lineup = LineupWeek::find(TeamLineup::thisMonday());
+        $tagged = LineupTree::forWeek($lineup, LineupTree::roster())->keepTags($lineup?->tags)[$this->name] ?? null;
+
+        return collect([
+            ...ProjectAssignment::where('member_name', $this->name)->pluck('job_number'),
+            ...ProjectRole::where('member_name', $this->name)->pluck('job_number'),
+            $tagged,
+        ])->filter()->unique()->values()->all();
     }
 }

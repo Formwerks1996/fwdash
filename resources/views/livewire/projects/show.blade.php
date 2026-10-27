@@ -25,12 +25,12 @@
                     @if($s['developer']) <span class="chip">{{ $s['developer'] }}</span> @endif
                     @if($s['division']) <span class="chip">{{ $s['division'] }}</span> @endif
                     @forelse($roles[ProjectRole::Lead] as $name)
-                        <span class="chip">{{ __('Lead') }} <a href="{{ route('pm-desk', $name) }}" class="hover:text-navy" wire:navigate>{{ $name }}</a></span>
+                        <span class="chip">{{ __('Lead') }} <a href="{{ route('projects.index', ['view' => 'cards', 'person' => $name]) }}" class="hover:text-navy" wire:navigate>{{ $name }}</a></span>
                     @empty
                         @if($s['lead']) <span class="chip">{{ __('Lead') }} {{ $s['lead'] }}</span> @endif
                     @endforelse
                     @foreach($roles[ProjectRole::ProjectManager] as $name)
-                        <span class="chip">{{ __('PM') }} <a href="{{ route('pm-desk', $name) }}" class="hover:text-navy" wire:navigate>{{ $name }}</a></span>
+                        <span class="chip">{{ __('PM') }} <a href="{{ route('projects.index', ['view' => 'cards', 'person' => $name]) }}" class="hover:text-navy" wire:navigate>{{ $name }}</a></span>
                     @endforeach
                     <span @class(['chip', 'is-on' => $s['active']])>{{ $s['active'] ? __('Active') : __('Inactive in billing') }}</span>
                 </div>
@@ -39,7 +39,7 @@
                     <span class="text-muted">{{ __('Assigned to') }}</span>
                     @forelse($assigned as $name)
                         <span class="chip">
-                            <a href="{{ route('pm-desk', $name) }}" class="hover:text-navy" wire:navigate>{{ $name }}</a>
+                            <a href="{{ route('projects.index', ['view' => 'cards', 'person' => $name]) }}" class="hover:text-navy" wire:navigate>{{ $name }}</a>
                             @if($positions[$name] ?? null) <span class="text-muted">· {{ $positions[$name] }}</span> @endif
                             @if($canAssign)
                                 <button type="button" class="hover:text-danger" wire:click="release(@js($name))" title="{{ __('Take :name off this project', ['name' => $name]) }}"><i class="ph ph-x"></i></button>
@@ -155,6 +155,7 @@
                         <th>{{ __('Phase') }}</th>
                         <th class="is-num">{{ __('Fee') }}</th>
                         <th class="is-num">{{ __('Billed') }}</th>
+                        <th class="is-num" title="{{ __('Hours logged in Mosaic, at each person\'s charge-out rate') }}">{{ __('Spent') }}</th>
                         <th>{{ __('Complete') }}</th>
                         <th class="is-num">{{ __('Left') }}</th>
                         <th>{{ __('Note') }}</th>
@@ -178,6 +179,15 @@
                                 @endif
                             </td>
                             <td class="is-num">{{ (float) $fee['billed'] ? Format::money($fee['billed']) : '—' }}</td>
+                            <td class="is-num">
+                                @php $spent = $spentByPhase[$fee['phase']] ?? null; @endphp
+                                @if($spent)
+                                    <span @class(['text-over' => (float) $fee['fee'] && $spent['spent'] > (float) $fee['fee']]) title="{{ collect($spent['names'])->pluck('name')->implode(', ') }}">{{ Format::money($spent['spent']) }}</span>
+                                    <small class="block text-muted">{{ Format::number($spent['hours'], 1) }} h</small>
+                                @else
+                                    —
+                                @endif
+                            </td>
                             <td>
                                 @if($fee['pctComplete'] !== null)
                                     <span class="inline-flex items-center gap-2">
@@ -197,6 +207,23 @@
                             </td>
                         </tr>
                     @endforeach
+                    @if($otherPhases->isNotEmpty())
+                        <tr class="is-muted">
+                            <td colspan="7" class="pt-4 text-xs tracking-[0.12em] uppercase">{{ __('Other phases in Mosaic: no fee here, not counted against the contract') }}</td>
+                        </tr>
+                        @foreach($otherPhases as $other)
+                            <tr wire:key="other-{{ $loop->index }}">
+                                <td class="font-medium">{{ $other['name'] }}</td>
+                                <td class="is-num text-muted">{{ __('no fee') }}</td>
+                                <td class="is-num text-muted">—</td>
+                                <td class="is-num">
+                                    {{ Format::money($other['spent']) }}
+                                    <small class="block text-muted">{{ Format::number($other['hours'], 1) }} h</small>
+                                </td>
+                                <td colspan="3"></td>
+                            </tr>
+                        @endforeach
+                    @endif
                 </tbody>
                 <tfoot>
                     @if((float) $s['hourlyBilled'])
@@ -204,6 +231,7 @@
                             <td>{{ __('Hourly') }}</td>
                             <td class="is-num text-muted">{{ __('no fee') }}</td>
                             <td class="is-num">{{ Format::money($s['hourlyBilled']) }}</td>
+                            <td></td>
                             <td colspan="3" class="text-xs font-normal text-muted">{{ __('Time and materials — uses up the contract balance') }}</td>
                         </tr>
                     @endif
@@ -211,6 +239,14 @@
                         <td>{{ __('Contract') }}</td>
                         <td class="is-num">{{ Format::money($feeTotal) }}</td>
                         <td class="is-num">{{ Format::money($billed) }}</td>
+                        <td class="is-num">
+                            @php $feeSpent = collect($spentByPhase)->only(collect($this->fees)->filter(fn ($fee) => (float) $fee['fee'] > 0)->pluck('phase')->all())->sum('spent'); @endphp
+                            @if($feeSpent)
+                                <span @class(['text-over' => $feeSpent > $feeTotal])>{{ Format::money($feeSpent) }}</span>
+                            @else
+                                —
+                            @endif
+                        </td>
                         <td></td>
                         <td class="is-num">{{ Format::money(max(0, $feeTotal - $billed)) }}</td>
                         <td class="text-xs font-normal text-muted">{{ $amended ? trans_choice(':count phase amended since billing|:count phases amended since billing', $amended) : '' }}</td>

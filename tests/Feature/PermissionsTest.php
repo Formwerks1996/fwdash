@@ -2,7 +2,7 @@
 
 use App\Models\User;
 
-it('limits staff to their week, their own projects, their PM Desk and alerts', function () {
+it('limits staff to their week, their own projects and alerts', function () {
     $staff = User::factory()->staff()->create();
 
     $this->actingAs($staff)->get(route('home'))->assertRedirect(route('my-week'));

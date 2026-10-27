@@ -4,8 +4,6 @@ namespace App\Models;
 
 use App\Enums\Permission;
 use App\Enums\Role;
-use App\Livewire\Team\TeamLineup;
-use App\Support\LineupTree;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -85,7 +83,7 @@ class User extends Authenticatable
     }
 
     /**
-     * Job numbers this user is assigned to on the PM Desk.
+     * Job numbers this user is assigned to.
      *
      * @return array<int, string>
      */
@@ -144,24 +142,13 @@ class User extends Authenticatable
     }
 
     /**
-     * The projects that are this person's own: PM Desk assignments, the ones
-     * they lead or manage, and this week's Team Lineup project.
+     * The projects that are this person's own: see TeamMember::jobNumbers().
      *
      * @return array<int, string>
      */
     public function ownJobNumbers(): array
     {
-        $member = $this->teamMember();
-
-        if ($member === null) {
-            return [];
-        }
-
-        $roster = LineupTree::roster();
-        $lineup = LineupWeek::find(TeamLineup::thisMonday());
-        $tagged = LineupTree::forWeek($lineup, $roster)->keepTags($lineup?->tags)[$member->name] ?? null;
-
-        return collect([...$this->assignedJobNumbers(), ...$this->roleJobNumbers(), $tagged])->filter()->unique()->values()->all();
+        return $this->teamMember()?->jobNumbers() ?? [];
     }
 
     public function initials(): string

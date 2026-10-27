@@ -8,7 +8,7 @@
 <div class="space-y-8">
     <div>
         <h1 class="page-title">{{ __('Leads & PMs') }}</h1>
-        <p class="page-subtitle">{{ __('Who leads each project, and who manages it under them. Changes show on the PM Desk and the Projects pages straight away.') }}</p>
+        <p class="page-subtitle">{{ __('Who leads each project, and who manages it under them. Changes show on the Projects pages straight away.') }}</p>
     </div>
 
     <div class="card p-0">

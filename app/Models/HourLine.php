@@ -15,8 +15,9 @@ use Illuminate\Database\Eloquent\Model;
  * @property ?string $amount
  * @property ?string $rate_source
  * @property ?string $note
+ * @property ?int $extra_id
  */
-#[Fillable(['id', 'period', 'job_number', 'staff', 'hours', 'rate', 'amount', 'rate_source', 'note'])]
+#[Fillable(['id', 'period', 'job_number', 'staff', 'hours', 'rate', 'amount', 'rate_source', 'note', 'extra_id'])]
 class HourLine extends Model
 {
     public $timestamps = false;
@@ -25,7 +26,7 @@ class HourLine extends Model
     public function snapshot(): array
     {
         return [
-            ...$this->only(['id', 'period', 'job_number', 'staff', 'hours', 'rate', 'amount', 'rate_source', 'note']),
+            ...$this->only(['id', 'period', 'job_number', 'staff', 'hours', 'rate', 'amount', 'rate_source', 'note', 'extra_id']),
             'period' => substr((string) $this->period, 0, 10),
         ];
     }

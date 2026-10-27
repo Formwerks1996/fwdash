@@ -118,7 +118,7 @@
                                     $used = (float) $row['used'];
                                     $scale = max(1.2, min($used, 2));
                                     $left = $row['feeHours'] - $row['hours'];
-                                    $url = ($canOpenProjects ? route('projects.show', $row['jobNumber']) : route('pm-desk'));
+                                    $url = ($canOpenProjects ? route('projects.show', $row['jobNumber']) : route('projects.index', ['view' => 'cards']));
                                 @endphp
                                 <tr
                                     wire:key="al-{{ $row['jobNumber'] }}"
@@ -202,7 +202,7 @@
                         </thead>
                         <tbody>
                             @foreach($report['noFee'] as $row)
-                                @php $url = ($canOpenProjects ? route('projects.show', $row['jobNumber']) : route('pm-desk')); @endphp
+                                @php $url = ($canOpenProjects ? route('projects.show', $row['jobNumber']) : route('projects.index', ['view' => 'cards'])); @endphp
                                 <tr wire:key="al-nofee-{{ $row['jobNumber'] }}" class="is-link" tabindex="0" x-on:click="Livewire.navigate(@js($url))" x-on:keydown.enter="Livewire.navigate(@js($url))">
                                     <td><b class="font-medium">{{ $row['jobNumber'] }}</b> {{ $row['jobName'] }}</td>
                                     <td class="is-num">{{ Format::number($row['hours']) }} h</td>

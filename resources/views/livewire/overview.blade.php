@@ -3,35 +3,56 @@
 
     $f = $this->figures;
     $ringTotal = array_sum($f['ring']['values']);
+    $byQuarter = $this->showsQuarter();
+    $spanName = $byQuarter ? "Q{$quarter} {$year}" : (string) $year;
+    $priorName = $byQuarter ? 'Q'.$quarter.' '.($year - 1) : (string) ($year - 1);
+    $firstMonth = $this->spanMonths()[0];
 @endphp
 
 <div class="space-y-8">
     <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
             <h1 class="font-heading text-[2.6rem] leading-none font-medium tracking-[-0.01em] text-navy">
-                {{ $year }} <span class="font-sans text-[0.9rem] font-normal tracking-normal text-muted">{{ __('year to date') }}</span>
+                {{ $spanName }} <span class="font-sans text-[0.9rem] font-normal tracking-normal text-muted">{{ $byQuarter ? __('quarter to date') : __('year to date') }}</span>
             </h1>
             <p class="page-subtitle">
                 <b class="font-medium text-ink-2">{{ __('Billing') }}</b>
-                {{ __('entered through :month — :count of 12 months', ['month' => Format::month($f['lastEntered']), 'count' => $f['monthsEntered']]) }}
+                @if($f['monthsEntered'])
+                    {{ __('entered through :month — :count of :total months', ['month' => Format::month($f['lastEnteredInSpan']), 'count' => $f['monthsEntered'], 'total' => $f['spanMonths']]) }}
+                @else
+                    {{ __('none entered yet') }}
+                @endif
                 · <b class="font-medium text-ink-2">{{ __('Costs') }}</b>
                 {{ $f['costedMonths'] ? __('for :count of those months', ['count' => $f['costedMonths']]) : __('not entered yet') }}
             </p>
         </div>
 
-        <div class="seg">
-            @foreach($this->years as $option)
-                <button type="button" wire:click="setYear({{ $option }})" @class(['is-active !bg-navy' => $option === $year])>{{ $option }}</button>
-            @endforeach
+        <div class="flex flex-wrap items-center gap-3">
+            <div class="seg" role="group" aria-label="{{ __('Span') }}">
+                <button type="button" wire:click="setSpan('quarter')" @class(['is-active' => $byQuarter])>{{ __('Quarterly') }}</button>
+                <button type="button" wire:click="setSpan('year')" @class(['is-active' => ! $byQuarter])>{{ __('Annual') }}</button>
+            </div>
+            @if($byQuarter)
+                <div class="seg" role="group" aria-label="{{ __('Quarter') }}">
+                    @foreach(range(1, 4) as $option)
+                        <button type="button" wire:click="setQuarter({{ $option }})" @class(['is-active !bg-navy' => $option === $quarter])>Q{{ $option }}</button>
+                    @endforeach
+                </div>
+            @endif
+            <div class="seg" role="group" aria-label="{{ __('Year') }}">
+                @foreach($this->years as $option)
+                    <button type="button" wire:click="setYear({{ $option }})" @class(['is-active !bg-navy' => $option === $year])>{{ $option }}</button>
+                @endforeach
+            </div>
         </div>
     </div>
 
     <div class="kpis grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <x-kpi :label="__('Billed')" :value="Format::compact($f['ytd'])" dark>
             @if($f['priorYtd'])
-                <x-trend :current="$f['ytd']" :prior="$f['priorYtd']" /> {{ __('on :amount over the same :count months of :year', ['amount' => Format::compact($f['priorYtd']), 'count' => $f['monthsEntered'], 'year' => $year - 1]) }}
+                <x-trend :current="$f['ytd']" :prior="$f['priorYtd']" /> {{ __('on :amount over the same :count months of :year', ['amount' => Format::compact($f['priorYtd']), 'count' => $f['monthsEntered'], 'year' => $priorName]) }}
             @else
-                {{ __('over :count months · nothing comparable in :year', ['count' => $f['monthsEntered'], 'year' => $year - 1]) }}
+                {{ __('over :count months · nothing comparable in :year', ['count' => $f['monthsEntered'], 'year' => $priorName]) }}
             @endif
         </x-kpi>
         <x-kpi :label="__('Owed to us')" :value="Format::compact($f['owed']['total'])" :warn="$f['owedLate'] > 0">
@@ -93,7 +114,7 @@
                 <div>
                     <h2 class="section-title">{{ __('Billed, cost and profit by month') }}</h2>
                     <p class="section-note">
-                        {{ __('Months not yet entered show the year\'s run rate of :rate a month. Click a month to see where its money went.', ['rate' => Format::compact($f['runRate'])]) }}
+                        {{ __('Months not yet entered show your projection, or else the year\'s run rate of :rate a month. Click a month to see where its money went.', ['rate' => Format::compact($f['runRate'])]) }}
                         @if($f['costsWaiting'])
                             {{ __('Costs for :months are in but wait for month end.', ['months' => implode(', ', $f['costsWaiting'])]) }}
                         @endif
@@ -103,11 +124,11 @@
                     {{ __('Billing on pace for') }}
                     <div class="font-heading text-xl text-navy">{{ Format::compact($f['projected']) }}</div>
                     @if($f['priorFull'])
-                        {{ __(':year closed at :amount', ['year' => $year - 1, 'amount' => Format::compact($f['priorFull'])]) }}
+                        {{ __(':year closed at :amount', ['year' => $priorName, 'amount' => Format::compact($f['priorFull'])]) }}
                     @endif
                 </div>
             </div>
-            <x-chart kind="overview" :data="$f['chart']" height="18rem" class="mt-4" x-on:chart-click="$wire.dispatch('show-spending', { months: ['{{ $year }}-' + String($event.detail.index + 1).padStart(2, '0')] })" />
+            <x-chart kind="overview" :data="$f['chart']" height="18rem" class="mt-4" x-on:chart-click="$wire.dispatch('show-spending', { months: ['{{ $year }}-' + String($event.detail.index + {{ $firstMonth }}).padStart(2, '0')] })" />
         </div>
 
         <div class="space-y-4">
@@ -122,6 +143,80 @@
             </x-kpi>
         </div>
     </div>
+
+    @if($byQuarter)
+        @php
+            $canProject = auth()->user()->can('edit billing');
+            $actualCost = fn (array $month) => $month['basis'] === 'actual' && $month['cost'] ? (float) $month['cost']['total'] : null;
+            $diff = fn (?float $actual, ?float $projected) => $actual !== null && $projected !== null ? $actual - $projected : null;
+            $sumOf = fn ($values) => collect($values)->contains(fn ($value) => $value !== null) ? collect($values)->sum() : null;
+            $rows = [
+                ['label' => __('Projected billing'), 'field' => 'billed', 'values' => $f['months']->pluck('projectedBilled')->all()],
+                ['label' => __('Billed'), 'values' => $f['months']->pluck('billed')->all()],
+                ['label' => __('Billed vs projected'), 'diff' => true, 'values' => $f['months']->map(fn ($month) => $diff($month['billed'], $month['projectedBilled']))->all()],
+                ['label' => __('Projected cost'), 'field' => 'cost', 'values' => $f['months']->pluck('projectedCost')->all(), 'gap' => true],
+                ['label' => __('Cost'), 'values' => $f['months']->map($actualCost)->all()],
+                ['label' => __('Projected profit'), 'values' => $f['months']->map(fn ($month) => $month['projectedBilled'] !== null && $month['projectedCost'] !== null ? $month['projectedBilled'] - $month['projectedCost'] : null)->all(), 'gap' => true],
+                ['label' => __('Profit'), 'values' => $f['months']->map(fn ($month) => $month['billed'] !== null && $actualCost($month) !== null ? $month['billed'] - $actualCost($month) : null)->all()],
+            ];
+        @endphp
+        <section class="card p-0">
+            <div class="flex flex-wrap items-baseline justify-between gap-2 px-6 pt-5">
+                <div>
+                    <h2 class="section-title">{{ __('Projections') }}</h2>
+                    <p class="section-note">{{ $canProject ? __('Type what you expect to bill and spend each month; it shows on the chart as a dashed line and is set against what comes in.') : __('What the partners expect to bill and spend each month, against what came in.') }}</p>
+                </div>
+                @error('projection') <p class="error-note">{{ $message }}</p> @enderror
+            </div>
+            <div class="mt-3 overflow-x-auto">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            @foreach($f['months'] as $month)
+                                <th class="is-num">{{ $month['name'] }}</th>
+                            @endforeach
+                            <th class="is-num">{{ $spanName }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($rows as $row)
+                            @php $total = $sumOf($row['values']); @endphp
+                            <tr wire:key="proj-{{ $loop->index }}" @class(['border-t-2 border-t-[#e6e8ea]' => $row['gap'] ?? false])>
+                                <td @class(['font-medium' => isset($row['field']), 'text-ink-2' => ! isset($row['field'])])>{{ $row['label'] }}</td>
+                                @foreach($f['months'] as $month)
+                                    @php $value = $row['values'][$loop->index]; @endphp
+                                    <td @class(['is-num', 'text-over' => ($row['diff'] ?? false) && $value !== null && $value < 0, 'text-[#2f8a67]' => ($row['diff'] ?? false) && $value !== null && $value > 0])>
+                                        @if(isset($row['field']) && $canProject)
+                                            <input
+                                                class="cell-input"
+                                                value="{{ $value === null ? '' : number_format($value, 0, '.', ',') }}"
+                                                placeholder="—"
+                                                inputmode="decimal"
+                                                wire:change="saveProjection('{{ $month['key'] }}', '{{ $row['field'] }}', $event.target.value)"
+                                                aria-label="{{ $row['label'] }}, {{ $month['name'] }}"
+                                            >
+                                        @elseif($value === null)
+                                            <span class="text-muted">—</span>
+                                        @else
+                                            {{ ($row['diff'] ?? false) && $value > 0 ? '+' : '' }}{{ Format::money($value) }}
+                                        @endif
+                                    </td>
+                                @endforeach
+                                <td @class(['is-num font-medium', 'text-over' => ($row['diff'] ?? false) && $total !== null && $total < 0, 'text-[#2f8a67]' => ($row['diff'] ?? false) && $total !== null && $total > 0])>
+                                    @if($total === null)
+                                        <span class="text-muted">—</span>
+                                    @else
+                                        {{ ($row['diff'] ?? false) && $total > 0 ? '+' : '' }}{{ Format::money($total) }}
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    @endif
 
     @if($f['owed']['total'] > 0)
         <section class="card">
@@ -170,7 +265,7 @@
             </div>
             <div>
                 <h2 class="section-title">{{ __('What was billed') }}</h2>
-                <p class="section-note">{{ __('By division, :year.', ['year' => $year]) }}</p>
+                <p class="section-note">{{ __('By division, :year.', ['year' => $spanName]) }}</p>
                 <ul class="mt-4 space-y-1.5 text-sm">
                     @foreach($f['divisions'] as $label => $value)
                         <li @class(['flex items-center justify-between gap-2', 'text-muted' => ! $value])>

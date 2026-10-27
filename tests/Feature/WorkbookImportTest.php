@@ -4,6 +4,8 @@ use App\Actions\Billing\SavePaymentAction;
 use App\Actions\ImportWorkbookAction;
 use App\Billing\BillingEngine;
 use App\Models\AuditLog;
+use App\Models\Extra;
+use App\Models\HourLine;
 use App\Models\MonthlyCost;
 use App\Models\Payment;
 use App\Models\Project;
@@ -269,4 +271,18 @@ it('keeps the last costs when a workbook has no Costs sheet', function () {
     app(ImportWorkbookAction::class)->execute(makeWorkbook(), 'Dashboard Data.xlsx');
 
     expect(MonthlyCost::byMonth())->toHaveKey('2026-05');
+});
+
+it('keeps which extra each hourly line is tagged to across uploads', function () {
+    $importer = app(ImportWorkbookAction::class);
+    $importer->execute(makeWorkbook(), 'first.xlsx');
+
+    $line = HourLine::firstOrFail();
+    $extra = Extra::create(['job_number' => $line->job_number, 'title' => 'Construction Administration (Hourly)', 'status' => 'active']);
+    $line->update(['extra_id' => $extra->id]);
+
+    $importer->execute(makeWorkbook(), 'second.xlsx');
+
+    expect(HourLine::where('extra_id', $extra->id)->count())->toBe(1)
+        ->and(HourLine::whereKeyNot(HourLine::where('extra_id', $extra->id)->value('id'))->whereNotNull('extra_id')->count())->toBe(0);
 });

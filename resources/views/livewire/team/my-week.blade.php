@@ -51,7 +51,7 @@
                 </div>
 
                 @forelse($rows as $row)
-                    <a href="{{ $canOpenProjects ? route('projects.show', $row['project']->job_number) : route('pm-desk') }}" wire:navigate class="card grid gap-4 transition-colors hover:border-[#c9ced3] sm:grid-cols-[1.6fr_1fr_1fr]">
+                    <a href="{{ $canOpenProjects ? route('projects.show', $row['project']->job_number) : route('projects.index', ['view' => 'cards']) }}" wire:navigate class="card grid gap-4 transition-colors hover:border-[#c9ced3] sm:grid-cols-[1.6fr_1fr_1fr]">
                         <div class="min-w-0">
                             <span class="text-xs text-muted tabular-nums">{{ $row['project']->job_number }}</span>
                             <div class="mt-1 truncate text-[1.05rem] text-ink">{{ $row['project']->job_name }}</div>
