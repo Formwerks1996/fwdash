@@ -4,12 +4,14 @@ use App\Actions\Billing\SavePaymentAction;
 use App\Actions\ImportWorkbookAction;
 use App\Billing\BillingEngine;
 use App\Models\AuditLog;
+use App\Models\MonthlyCost;
 use App\Models\Payment;
 use App\Models\Project;
 use App\Models\ProjectStatus;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Spatie\SimpleExcel\SimpleExcelWriter;
 
 /**
@@ -240,3 +242,31 @@ it('re-works a project\'s financials when its billing changes', function () {
 it('refuses billing rows for a job that is not a project', function () {
     Payment::create(['paid_on' => '2026-07-15', 'job_number' => '#999', 'amount' => 100]);
 })->throws(QueryException::class);
+
+it('reads monthly costs from a Costs sheet, a category per column', function () {
+    $import = app(ImportWorkbookAction::class)->execute(makeWorkbook(['Costs' => [
+        ['Month', 'payroll', 'Rent', 'Software', 'Note'],
+        [new DateTimeImmutable('2026-05-31'), 61000, 9500, 4750.5, null],
+        ['2026-06', '$64,500', null, 4800, 'rent prepaid in May'],
+        ['2026-06-15', 1, 1, 1, null],
+        [null, 500, 500, 500, null],
+    ]]), 'Dashboard Data.xlsx');
+
+    expect(MonthlyCost::byMonth())->toBe([
+        '2026-05' => ['payroll' => 61000.0, 'overhead' => 14250.5, 'total' => 75250.5],
+        '2026-06' => ['payroll' => 64500.0, 'overhead' => 4800.0, 'total' => 69300.0],
+    ])
+        ->and(MonthlyCost::byCategory(['2026-05', '2026-06']))->toBe(['Payroll' => 125500.0, 'Rent' => 9500.0, 'Software' => 9550.5])
+        ->and(DB::table('monthly_cost_notes')->pluck('note', 'month')->all())->toBe(['2026-06' => 'rent prepaid in May'])
+        ->and($import->counts['monthly_costs'])->toBe(2)
+        ->and($import->warnings)->toContain('Costs row 4: 2026-06 is already on an earlier row — skipped.')
+        ->and($import->warnings)->toContain('Costs row 5: no month — skipped.');
+});
+
+it('keeps the last costs when a workbook has no Costs sheet', function () {
+    MonthlyCost::create(['month' => '2026-05', 'category' => 'Payroll', 'amount' => 61000]);
+
+    app(ImportWorkbookAction::class)->execute(makeWorkbook(), 'Dashboard Data.xlsx');
+
+    expect(MonthlyCost::byMonth())->toHaveKey('2026-05');
+});

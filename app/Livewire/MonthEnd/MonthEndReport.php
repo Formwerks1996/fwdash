@@ -5,6 +5,7 @@ namespace App\Livewire\MonthEnd;
 use App\Actions\Billing\SetPeriodStatusAction;
 use App\Billing\BillingEngine;
 use App\Billing\PeriodReports;
+use App\Billing\Spending;
 use App\Enums\Permission;
 use App\Livewire\Concerns\SortsRows;
 use Illuminate\Support\Collection;
@@ -18,6 +19,8 @@ use Livewire\Component;
  * Where the month stands, for the partners: the old "Report for Jim". The
  * $95/hr line is the judgement, rows sort worst rate first and outstanding cash
  * is aged against the period end. Hours come from the hours table alone.
+ * Spent is the Costs sheet total for the month, or failing that staff time at
+ * cost (managers and admins), and Profit is the month's billing less it.
  */
 /**
  * @property-read array<string, mixed> $figures
@@ -82,7 +85,27 @@ class MonthEndReport extends Component
             return [];
         }
 
-        return app(PeriodReports::class)->monthEnd($this->period, $this->only);
+        $figures = app(PeriodReports::class)->monthEnd($this->period, $this->only);
+
+        $keys = array_column($figures['series']['months'], 'key');
+        $costs = app(Spending::class)->monthCosts($keys, withStaff: auth()->user()->can(Permission::ManageStaffCosts->value));
+
+        if (! array_filter(array_column($costs, 'basis'))) {
+            return $figures;
+        }
+
+        $key = $keys[$figures['chart']['selected']];
+        $cost = $costs[$key];
+
+        $figures['chart']['spent'] = array_column($costs, 'total');
+        $figures['spent'] = [
+            'key' => $key,
+            ...$cost,
+            'profit' => $cost['total'] === null ? null : $figures['total'] - $cost['total'],
+            'margin' => $cost['total'] !== null && $figures['total'] ? ($figures['total'] - $cost['total']) / $figures['total'] : null,
+        ];
+
+        return $figures;
     }
 
     /** @return Collection<int, array<string, mixed>> */

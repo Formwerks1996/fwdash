@@ -59,25 +59,19 @@ const charts = {
         },
     }),
 
-    revenue: ({ labels, actual, runRate, prior }) => ({
+    overview: ({ labels, actual, runRate, cost, profit }) => ({
         data: {
             labels,
             datasets: [
-                { type: 'bar', label: 'Billed', data: actual, backgroundColor: '#00263E', stack: 'revenue' },
-                { type: 'bar', label: 'Run rate', data: runRate, backgroundColor: '#dfe4e9', stack: 'revenue' },
-                {
-                    type: 'line',
-                    label: 'Prior year',
-                    data: prior,
-                    borderColor: '#5c6873',
-                    borderDash: [4, 4],
-                    borderWidth: 1.5,
-                    pointRadius: 0,
-                    spanGaps: true,
-                },
+                { type: 'line', label: 'Profit', data: profit, borderColor: '#2f8a67', backgroundColor: '#2f8a67', borderWidth: 2, pointRadius: 3, tension: 0, order: 0 },
+                { type: 'bar', label: 'Billed', data: actual, backgroundColor: '#00263E', stack: 'billed', maxBarThickness: 26, order: 1 },
+                { type: 'bar', label: 'Run rate', data: runRate, backgroundColor: '#dfe4e9', stack: 'billed', maxBarThickness: 26, order: 1 },
+                { type: 'bar', label: 'Cost', data: cost, backgroundColor: '#c4694a', stack: 'cost', maxBarThickness: 26, order: 1 },
             ],
         },
         options: {
+            onClick: (event, elements, chart) => emitClick(chart, elements, actual.map((value) => value !== null)),
+            onHover: (event, elements, chart) => pointerOver(event, elements, chart, actual.map((value) => value !== null)),
             interaction: { mode: 'index', intersect: false },
             plugins: {
                 legend: { position: 'bottom' },
@@ -85,7 +79,7 @@ const charts = {
             },
             scales: {
                 x: { grid: { display: false }, stacked: true },
-                y: { grid, border: { display: false }, stacked: true, ticks: { callback: compact } },
+                y: { grid, border: { display: false }, ticks: { callback: compact } },
             },
         },
     }),
@@ -162,7 +156,7 @@ document.addEventListener('alpine:init', () => {
 });
 
 /*
- * Month End, Extras and Monthly Targets. A click on a month is raised as a
+ * Month End and Extras. A click on a month is raised as a
  * bubbling "chart-click" DOM event carrying the month's index, so the page can
  * hand it to Livewire with x-on:chart-click.
  */
@@ -202,7 +196,7 @@ const pointerOver = (event, elements, chart, clickable) => {
 const revenueLabels = { actual: 'Billed', runrate: 'At this pace' };
 
 Object.assign(charts, {
-    monthEndRevenue: ({ labels, revenue, bases, prior, selected, clickable }) => ({
+    monthEndRevenue: ({ labels, revenue, bases, prior, selected, clickable, spent }) => ({
         type: 'line',
         data: {
             labels,
@@ -231,6 +225,20 @@ Object.assign(charts, {
                     pointRadius: 0,
                     spanGaps: true,
                 },
+                // Managers and admins only: staff time at cost, behind the lines.
+                ...(spent
+                    ? [
+                          {
+                              type: 'bar',
+                              label: 'Spent',
+                              data: spent,
+                              backgroundColor: spent.map((value, index) => (index === selected ? '#d9a896' : '#efd9d0')),
+                              borderRadius: 3,
+                              maxBarThickness: 22,
+                              order: 3,
+                          },
+                      ]
+                    : []),
             ],
         },
         options: {
@@ -293,57 +301,182 @@ Object.assign(charts, {
             },
         },
     }),
+});
 
-    targets: ({ labels, titles, shown, estimate, hit, target }) => ({
-        data: {
-            labels,
-            datasets: [
-                {
-                    type: 'bar',
-                    label: 'Invoiced',
-                    data: shown,
-                    backgroundColor: shown.map((value, index) => (estimate[index] ? '#d6e1ea' : hit[index] ? '#3f7d4f' : '#00263E')),
-                    borderRadius: 4,
-                    maxBarThickness: 34,
-                    order: 2,
-                },
-                {
-                    type: 'line',
-                    label: 'Target',
-                    data: target,
-                    borderColor: '#0f2233',
-                    backgroundColor: '#0f2233',
-                    borderWidth: 2,
-                    borderDash: [5, 4],
-                    pointRadius: 3,
-                    spanGaps: true,
-                    order: 1,
-                },
-            ],
+/*
+ * Timesheets' add-row line. Search projects (yours first, then by type) or
+ * pick office or time off; a project then asks for its phase. The chosen row
+ * goes to Livewire's addRow through newRow.
+ */
+document.addEventListener('alpine:init', () => {
+    window.Alpine.data('rowPicker', ({ groups, categories, phases }) => ({
+        categories,
+        open: false,
+        query: '',
+        projectQuery: '',
+        project: null,
+        cursor: 0,
+        busy: false,
+
+        init() {
+            this.$watch('cursor', () => this.$nextTick(() => this.$refs.list.querySelector('[data-active]')?.scrollIntoView({ block: 'nearest' })));
         },
-        options: {
-            interaction: { mode: 'index', intersect: false },
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        title: (items) => titles[items[0].dataIndex],
-                        label: (item) => {
-                            if (item.raw === null) {
-                                return null;
-                            }
 
-                            const label = item.datasetIndex === 0 ? (estimate[item.dataIndex] ? 'Invoiced (estimate)' : 'Invoiced') : 'Target';
+        get sections() {
+            const terms = this.query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+            const matches = (text) => terms.every((term) => text.toLowerCase().includes(term));
 
-                            return `${label}: ${moneyWhole.format(item.raw)}`;
-                        },
+            if (this.project) {
+                return [
+                    {
+                        label: '',
+                        items: phases
+                            .filter((phase) => matches(`${phase.code} ${phase.name}`))
+                            .map((phase) => ({ key: `phase:${phase.code}`, name: phase.name, meta: phase.code, phase: phase.code })),
                     },
-                },
-            },
-            scales: {
-                x: { grid: { display: false } },
-                y: { beginAtZero: true, grid, border: { display: false }, ticks: { maxTicksLimit: 6, callback: compactFine } },
-            },
+                ];
+            }
+
+            const sections = groups
+                .filter((group) => terms.length || !group.inactive)
+                .map((group) => ({
+                    label: group.label,
+                    items: group.items
+                        .filter((item) => matches(`${item.name} ${item.job} ${item.type}`))
+                        .map((item) => ({ ...item, key: `project:${item.job}` })),
+                }));
+
+            if (terms.length) {
+                sections.push({
+                    label: 'Office & time off',
+                    items: categories
+                        .filter((category) => matches(category.label))
+                        .map((category) => ({ key: `category:${category.value}`, name: category.label, meta: '', category: category.value })),
+                });
+            }
+
+            return sections.filter((section) => section.items.length);
         },
-    }),
+
+        get options() {
+            return this.sections.flatMap((section) => section.items);
+        },
+
+        start() {
+            this.$refs.search.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            this.$refs.search.focus({ preventScroll: true });
+            this.open = true;
+        },
+
+        move(step) {
+            this.open = true;
+            this.cursor = Math.min(Math.max(this.cursor + step, 0), this.options.length - 1);
+        },
+
+        choose(option) {
+            if (option.category) {
+                return this.add({ category: option.category });
+            }
+
+            if (this.project) {
+                return this.add({ category: 'project', job_number: this.project.job, phase_code: option.phase });
+            }
+
+            this.project = option;
+            this.projectQuery = this.query;
+            this.query = '';
+            this.cursor = 0;
+            this.$refs.search.focus();
+        },
+
+        back() {
+            this.project = null;
+            this.query = this.projectQuery;
+            this.cursor = 0;
+            this.$refs.search.focus();
+        },
+
+        close(blur = false) {
+            this.open = false;
+            this.project = null;
+            this.query = '';
+            this.cursor = 0;
+
+            if (blur) {
+                this.$refs.search.blur();
+            }
+        },
+
+        async add(row) {
+            this.busy = true;
+            this.$wire.newRow = { category: 'project', job_number: '', phase_code: '', ...row };
+
+            try {
+                await this.$wire.addRow();
+            } finally {
+                this.busy = false;
+                this.close(true);
+            }
+        },
+    }));
+});
+
+/*
+ * Leads & PMs: the person menu behind each lead or PM. The lists live on the
+ * table (leads, team); the current person is read from data-current, which
+ * Livewire keeps up to date after each change.
+ */
+document.addEventListener('alpine:init', () => {
+    window.Alpine.data('assignee', (job, role, list) => ({
+        open: false,
+        query: '',
+        cursor: 0,
+        current: '',
+        position: '',
+
+        get options() {
+            const terms = this.query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+
+            return this[list].filter((person) => terms.every((term) => `${person.label} ${person.name} ${person.hint}`.toLowerCase().includes(term)));
+        },
+
+        toggle() {
+            if (this.open) {
+                return this.close();
+            }
+
+            this.current = this.$root.dataset.current;
+            this.query = '';
+            this.cursor = Math.max(this.options.findIndex((person) => person.name === this.current), 0);
+            this.place();
+            this.open = true;
+            this.$nextTick(() => this.$refs.search.focus({ preventScroll: true }));
+        },
+
+        // Fixed to the trigger, so the table's scroll box can't clip it, and kept there on scroll; opens upward near the bottom of the window.
+        place() {
+            const trigger = this.$refs.trigger.getBoundingClientRect();
+            const left = Math.min(trigger.left, window.innerWidth - 272);
+
+            this.position = window.innerHeight - trigger.bottom < 340
+                ? `left: ${left}px; bottom: ${window.innerHeight - trigger.top + 4}px`
+                : `left: ${left}px; top: ${trigger.bottom + 4}px`;
+        },
+
+        close(refocus = false) {
+            this.open = false;
+
+            if (refocus) {
+                this.$refs.trigger.focus();
+            }
+        },
+
+        choose(name) {
+            this.close(true);
+
+            if (name !== this.current) {
+                this.$wire.setRole(job, role, name);
+            }
+        },
+    }));
 });

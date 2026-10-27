@@ -21,8 +21,6 @@ return [
             'help' => 'Enter the month’s billing — phase percentages, CA draws and hourly lines — and close the month when it is invoiced.'],
         ['route' => 'invoicing', 'icon' => 'ph-receipt', 'label' => 'Invoicing', 'permission' => 'view financials', 'editable' => false,
             'help' => 'Every ongoing contract with what was billed this month, to date, and what is left. Download the monthly billing report from here.'],
-        ['route' => 'targets', 'icon' => 'ph-target', 'label' => 'Monthly Targets', 'permission' => 'view financials', 'editable' => true,
-            'help' => 'A revenue target per month, set against what was actually invoiced.'],
         ['route' => 'extras', 'icon' => 'ph-timer', 'label' => 'Extras', 'permission' => 'view financials', 'editable' => false,
             'help' => 'Hourly (time and materials) billing by job and month, including hours worked but not billed.'],
     ],
@@ -56,6 +54,8 @@ return [
             'help' => 'What the firm pays for software, annualised and converted to CAD, with seats paid for but unused.'],
         ['route' => 'hardware', 'icon' => 'ph-laptop', 'label' => 'Hardware', 'permission' => 'view office', 'editable' => true,
             'help' => 'Every computer, who has it, and when it is due for replacement.'],
+        ['route' => 'staff-costs', 'icon' => 'ph-user-circle-gear', 'label' => 'Staff Costs', 'permission' => 'manage staff costs', 'editable' => true,
+            'help' => 'What each person costs the firm an hour, which prices the Spent line on Month End. Managers and admins only.'],
     ],
 
     'Admin' => [

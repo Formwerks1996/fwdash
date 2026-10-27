@@ -9,6 +9,7 @@ use App\Enums\TimeCategory;
 use App\Models\Project;
 use App\Models\TimesheetEntry;
 use App\Models\User;
+use App\Support\ProjectTemplates;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
@@ -35,6 +36,19 @@ use Livewire\Component;
 #[Title('Timesheets')]
 class Timesheet extends Component
 {
+    /** How the add-row picker names each division, in the order its groups appear. */
+    protected const ProjectTypes = [
+        'MF' => 'Multi-family',
+        'MPX' => 'Multiplex',
+        'CHC' => 'CHC',
+        'REN' => 'Renovation',
+        'SF' => 'Single family',
+        'INT' => 'Interior',
+        'INT-MF' => 'Interior',
+        'LAN' => 'Landscape',
+        'RLA' => 'RLA',
+    ];
+
     #[Url]
     public ?string $week = null;
 
@@ -43,8 +57,6 @@ class Timesheet extends Component
 
     /** @var array<int, string> Rows added this week that have no hours yet. */
     public array $extraRows = [];
-
-    public bool $addingRow = false;
 
     /** @var array{category: string, job_number: string, phase_code: string} */
     public array $newRow = ['category' => 'project', 'job_number' => '', 'phase_code' => ''];
@@ -268,7 +280,6 @@ class Timesheet extends Component
         $this->keepRow($key);
 
         $this->newRow = ['category' => TimeCategory::Project->value, 'job_number' => '', 'phase_code' => ''];
-        $this->addingRow = false;
         unset($this->rows);
     }
 
@@ -321,9 +332,8 @@ class Timesheet extends Component
         $user = auth()->user();
 
         return view('livewire.timesheets.timesheet', [
-            'categories' => TimeCategory::cases(),
-            'phases' => [...Phase::codes(), Phase::Hours],
-            'projectGroups' => $this->isOwn ? $this->projectGroups($user) : collect(),
+            'projectGroups' => $projectGroups = $this->isOwn ? $this->projectGroups($user) : collect(),
+            'picker' => $this->isOwn ? $this->picker($projectGroups) : [],
             'people' => $user->can(Permission::ViewAllTimesheets->value)
                 ? User::query()->orderBy('name')->get(['id', 'name'])
                 : collect(),
@@ -331,24 +341,67 @@ class Timesheet extends Component
     }
 
     /**
-     * The Add row picker: the projects Mosaic has you on first, then the rest.
+     * The add-row picker's projects: the ones Mosaic has you on first, then the
+     * active ones by type (Multi-family, Multiplex, CHC…), then inactive.
      *
      * @return Collection<string, Collection<int, Project>>
      */
     protected function projectGroups(User $user): Collection
     {
         $assigned = $user->mosaicJobNumbers();
+        $order = [__('Your projects'), ...array_map(fn (string $type) => __($type), array_values(array_unique(self::ProjectTypes))), __('Other'), __('Inactive')];
 
-        $projects = Project::query()->orderByDesc('active')->orderBy('job_name')->get(['job_number', 'job_name', 'active']);
-
-        return $projects
+        return Project::query()
+            ->orderBy('job_name')
+            ->get(['job_number', 'job_name', 'division', 'active'])
             ->groupBy(fn (Project $project) => match (true) {
                 in_array($project->job_number, $assigned, true) => __('Your projects'),
-                $project->active => __('Other active projects'),
-                default => __('Inactive'),
+                ! $project->active => __('Inactive'),
+                default => $this->projectType($project) ?? __('Other'),
             })
-            ->sortBy(fn (Collection $group, string $label) => array_search($label, [__('Your projects'), __('Other active projects'), __('Inactive')], true))
+            ->sortBy(fn (Collection $group, string $label) => array_search($label, $order, true))
             ->toBase();
+    }
+
+    /**
+     * What the picker's Alpine component works from. Projects outside a type
+     * group carry their type beside the job number.
+     *
+     * @param  Collection<string, Collection<int, Project>>  $projectGroups
+     * @return array{groups: array<int, array<string, mixed>>, categories: array<int, array<string, string>>, phases: array<int, array<string, string>>}
+     */
+    protected function picker(Collection $projectGroups): array
+    {
+        $typed = fn (string $label) => in_array($label, [__('Your projects'), __('Inactive')], true);
+
+        return [
+            'groups' => $projectGroups->map(fn (Collection $projects, string $label) => [
+                'label' => $label,
+                'inactive' => $label === __('Inactive'),
+                'items' => $projects->map(fn (Project $project) => [
+                    'job' => $project->job_number,
+                    'name' => $project->job_name,
+                    'type' => (string) $this->projectType($project),
+                    'meta' => collect([$typed($label) ? $this->projectType($project) : null, $project->job_number])->filter()->join(' · '),
+                ])->values()->all(),
+            ])->values()->all(),
+            'categories' => collect(TimeCategory::cases())
+                ->reject(fn (TimeCategory $category) => $category->needsProject())
+                ->map(fn (TimeCategory $category) => ['value' => $category->value, 'label' => $category->label()])
+                ->values()
+                ->all(),
+            'phases' => [
+                ['code' => '', 'name' => __('No particular phase')],
+                ...array_map(fn (string $code) => ['code' => $code, 'name' => ProjectTemplates::Names[$code] ?? $code], [...Phase::codes(), Phase::Hours]),
+            ],
+        ];
+    }
+
+    protected function projectType(Project $project): ?string
+    {
+        $type = self::ProjectTypes[strtoupper((string) $project->division)] ?? null;
+
+        return $type ? __($type) : null;
     }
 
     protected function entryFor(string $rowKey, string $date): ?TimesheetEntry

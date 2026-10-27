@@ -5,7 +5,6 @@ use App\Billing\DeveloperIndex;
 use App\Enums\PursuitStage;
 use App\Livewire\BusinessDevelopment\DevelopersIndex;
 use App\Livewire\BusinessDevelopment\DevelopersShow;
-use App\Livewire\BusinessDevelopment\NewPursuit;
 use App\Livewire\BusinessDevelopment\Pipeline;
 use App\Models\Developer;
 use App\Models\Project;
@@ -114,25 +113,6 @@ it('creates a developer profile from the pipeline picker', function () {
 
     expect(Pursuit::sole()->developer)->toBe('Brand New Dev')
         ->and(Developer::firstWhere('key', 'brandnewdev'))->not->toBeNull();
-});
-
-it('adds a pursuit from the header form', function () {
-    $this->actingAs(User::factory()->manager()->create());
-
-    Livewire::test(NewPursuit::class)
-        ->call('show')
-        ->call('save')
-        ->assertHasErrors('project');
-
-    Livewire::test(NewPursuit::class)
-        ->call('show')
-        ->set('client', 'polygon homes')
-        ->set('project', '123 Main')
-        ->set('fee', '50000')
-        ->call('save')
-        ->assertRedirect(route('pipeline'));
-
-    expect(Pursuit::sole()->developer)->toBe('Polygon Homes');
 });
 
 it('keeps business development from staff', function () {

@@ -8,9 +8,8 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /*
- * The figures behind Month End, its printed reports, Extras and Monthly
- * Targets, composed from the billing engine so the screen and the paper can
- * never disagree.
+ * The figures behind Month End, its printed reports and Extras, composed
+ * from the billing engine so the screen and the paper can never disagree.
  */
 class PeriodReports
 {

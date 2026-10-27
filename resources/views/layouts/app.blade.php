@@ -56,11 +56,6 @@
                         @include('partials.quick-jump')
                         <div class="flex items-center gap-4">
                             @include('partials.view-as')
-                            @can('edit business development')
-                                <button type="button" class="btn whitespace-nowrap" x-data x-on:click="Livewire.dispatch('open-new-pursuit')">
-                                    <i class="ph ph-plus"></i>{{ __('New Pursuit') }}
-                                </button>
-                            @endcan
                         </div>
                     </header>
                 @endauth
@@ -72,10 +67,6 @@
                         <livewire:sticky-notes :label="$title ?? null" :key="'notes-'.request()->path()" />
                     @endauth
                 </main>
-
-                @can('edit business development')
-                    <livewire:business-development.new-pursuit />
-                @endcan
             </div>
         </div>
 

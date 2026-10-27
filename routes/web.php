@@ -15,6 +15,7 @@ use App\Livewire\Projects\ProjectsCreate;
 use App\Livewire\Projects\ProjectsIndex;
 use App\Livewire\Projects\ProjectsShow;
 use App\Livewire\Software;
+use App\Livewire\StaffCosts;
 use App\Livewire\Timesheets\Timesheet;
 use App\Livewire\Users;
 use Illuminate\Support\Facades\Route;
@@ -36,6 +37,10 @@ Route::middleware('auth')->group(function () {
         Route::get('software', Software::class)->name('software');
         Route::get('hardware', Hardware::class)->name('hardware');
     });
+
+    Route::get('staff-costs', StaffCosts::class)
+        ->middleware('can:'.Permission::ManageStaffCosts->value)
+        ->name('staff-costs');
 
     Route::get('projects/leads-and-pms', ProjectRoles::class)
         ->middleware('can:'.Permission::EditTeam->value)

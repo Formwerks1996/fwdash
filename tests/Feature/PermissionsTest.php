@@ -9,7 +9,7 @@ it('limits staff to their week, their own projects, their PM Desk and alerts', f
     $this->actingAs($staff)->get(route('alerts'))->assertOk();
     $this->actingAs($staff)->get(route('projects.index'))->assertOk();
 
-    foreach (['project-roles', 'overview', 'invoicing', 'software', 'hardware', 'lineup', 'imports.create', 'users'] as $route) {
+    foreach (['project-roles', 'overview', 'invoicing', 'software', 'hardware', 'staff-costs', 'lineup', 'imports.create', 'users'] as $route) {
         $this->actingAs($staff)->get(route($route))->assertForbidden();
     }
 });
@@ -19,7 +19,7 @@ it('lets managers see the financial and office pages but not admin ones', functi
 
     $this->actingAs($manager)->get(route('home'))->assertRedirect(route('overview'));
 
-    foreach (['overview', 'invoicing', 'projects.index', 'software', 'hardware', 'lineup'] as $route) {
+    foreach (['overview', 'invoicing', 'projects.index', 'software', 'hardware', 'staff-costs', 'lineup'] as $route) {
         $this->actingAs($manager)->get(route($route))->assertOk();
     }
 

@@ -26,6 +26,7 @@ enum Role: string
                 Permission::ViewFinancials,
                 Permission::EditBilling,
                 Permission::EditOffice,
+                Permission::ManageStaffCosts,
                 Permission::ViewBusinessDevelopment,
                 Permission::EditBusinessDevelopment,
                 Permission::EditTeam,

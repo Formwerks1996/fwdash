@@ -1,5 +1,4 @@
 @php
-    use App\Enums\TimeCategory;
     use App\Models\TimesheetEntry;
 
     $days = $this->days;
@@ -57,48 +56,6 @@
     </div>
 
     @if($isOwn)
-        <x-modal wire:model="addingRow" :title="__('Add a row')" max-width="560px">
-            <form wire:submit="addRow" class="grid gap-4 sm:grid-cols-3" x-data>
-                <div class="sm:col-span-3">
-                    <label class="field-label" for="new_category">{{ __('Time for') }}</label>
-                    <select id="new_category" wire:model.live="newRow.category" class="field-input">
-                        @foreach($categories as $category)
-                            <option value="{{ $category->value }}">{{ $category->label() }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                @if($newRow['category'] === TimeCategory::Project->value)
-                    <div class="sm:col-span-2">
-                        <label class="field-label" for="new_project">{{ __('Project') }}</label>
-                        <select id="new_project" wire:model="newRow.job_number" class="field-input">
-                            <option value="">{{ __('Pick a project') }}</option>
-                            @foreach($projectGroups as $group => $options)
-                                <optgroup label="{{ $group }}">
-                                    @foreach($options as $project)
-                                        <option value="{{ $project->job_number }}">{{ $project->job_name }} · {{ $project->job_number }}</option>
-                                    @endforeach
-                                </optgroup>
-                            @endforeach
-                        </select>
-                        @error('newRow.job_number') <p class="error-note mt-1">{{ $message }}</p> @enderror
-                    </div>
-                    <div>
-                        <label class="field-label" for="new_phase">{{ __('Phase') }}</label>
-                        <select id="new_phase" wire:model="newRow.phase_code" class="field-input">
-                            <option value="">{{ __('Any') }}</option>
-                            @foreach($phases as $phase)
-                                <option value="{{ $phase }}">{{ $phase }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                @endif
-                <div class="mt-2 flex justify-end gap-2 border-t border-line pt-4 sm:col-span-3">
-                    <button type="button" class="btn-secondary" x-on:click="$wire.addingRow = false">{{ __('Cancel') }}</button>
-                    <button type="submit" class="btn" wire:loading.attr="disabled" wire:target="addRow">{{ __('Add row') }}</button>
-                </div>
-            </form>
-        </x-modal>
-
         <x-modal wire:model="confirmingRemove" :title="__('Remove this row?')" max-width="460px">
             @php($removingRow = $rows->firstWhere('key', $removing))
             <div class="grid gap-4">
@@ -162,7 +119,7 @@
                     <button type="button" class="btn-secondary" wire:click="copyPreviousRows">
                         <i class="ph ph-copy"></i>{{ __('Copy last week’s rows') }}
                     </button>
-                    <button type="button" class="btn" x-data x-on:click="$wire.addingRow = true">
+                    <button type="button" class="btn" x-data x-on:click="$dispatch('add-row')">
                         <i class="ph ph-plus"></i>{{ __('Add row') }}
                     </button>
                 </div>
@@ -257,13 +214,108 @@
                         <tr>
                             <td colspan="{{ $isOwn ? 10 : 9 }}" class="py-10 text-center text-muted">
                                 @if($isOwn)
-                                    {{ __('No time logged this week. Add a row, or copy last week’s rows.') }}
+                                    {{ __('No time logged this week. Add a row below, or copy last week’s rows.') }}
                                 @else
                                     {{ __('No time logged this week.') }}
                                 @endif
                             </td>
                         </tr>
                     @endforelse
+
+                    @if($isOwn)
+                        <tr class="timesheet-add" wire:key="ts-add-row">
+                            <td colspan="10" class="whitespace-normal">
+                                <div
+                                    class="relative"
+                                    x-data="rowPicker(@js($picker))"
+                                    x-on:click.outside="close()"
+                                    x-on:add-row.window="start()"
+                                >
+                                    <label class="flex items-center gap-2.5 text-muted">
+                                        <span class="grid size-5 shrink-0 place-items-center border border-dashed border-[#c9cdd1] text-xs transition-colors" :class="open && 'border-solid border-navy bg-navy text-white'">
+                                            <i class="ph ph-plus" x-show="! busy"></i>
+                                            <i class="ph ph-circle-notch animate-spin" x-show="busy" x-cloak></i>
+                                        </span>
+                                        <template x-if="project">
+                                            <span class="chip shrink-0 bg-gold-soft text-ink-2">
+                                                <span class="max-w-48 truncate" x-text="project.name"></span>
+                                                <button type="button" class="hover:text-navy" x-on:click.prevent="back()" aria-label="{{ __('Choose another project') }}"><i class="ph ph-x"></i></button>
+                                            </span>
+                                        </template>
+                                        <input
+                                            x-ref="search"
+                                            x-model="query"
+                                            x-on:focus="open = true"
+                                            x-on:input="open = true; cursor = 0"
+                                            x-on:keydown.arrow-down.prevent="move(1)"
+                                            x-on:keydown.arrow-up.prevent="move(-1)"
+                                            x-on:keydown.enter.prevent="options[cursor] && choose(options[cursor])"
+                                            x-on:keydown.escape.prevent.stop="project ? back() : close(true)"
+                                            x-on:keydown.backspace="! query && project && back()"
+                                            x-on:keydown.tab="close()"
+                                            :placeholder="project ? @js(__('Which phase? Type to filter, or press Enter for none')) : @js(__('Add a project, office time or time off…'))"
+                                            class="min-w-0 flex-1 bg-transparent py-1 text-[0.8rem] text-ink placeholder:text-muted focus:outline-none"
+                                            role="combobox"
+                                            aria-label="{{ __('Add a row') }}"
+                                            :aria-expanded="open"
+                                            autocomplete="off"
+                                        >
+                                    </label>
+
+                                    <div
+                                        x-show="open"
+                                        x-cloak
+                                        x-transition:enter="transition duration-150 ease-out"
+                                        x-transition:enter-start="-translate-y-1 opacity-0"
+                                        x-transition:enter-end="translate-y-0 opacity-100"
+                                        class="absolute top-full left-0 z-30 mt-2 w-[30rem] max-w-[calc(100vw-3rem)] border border-line bg-white shadow-[0_16px_32px_-12px_rgba(0,38,62,0.25)]"
+                                    >
+                                        <div x-show="! project && ! query" class="flex flex-wrap items-center gap-1.5 border-b border-line px-3 py-2.5">
+                                            <template x-for="category in categories" :key="category.value">
+                                                <button type="button" class="chip transition-colors hover:bg-navy hover:text-white" x-on:click="add({ category: category.value })" x-text="category.label"></button>
+                                            </template>
+                                        </div>
+
+                                        <ul x-ref="list" class="max-h-72 overflow-y-auto py-1 text-[0.8rem]" role="listbox">
+                                            <template x-for="section in sections" :key="section.label || 'phases'">
+                                                <li>
+                                                    <p x-show="section.label" class="sticky top-0 bg-white px-3 pt-2.5 pb-1 text-[0.66rem] font-medium tracking-[0.09em] text-muted uppercase" x-text="section.label"></p>
+                                                    <ul>
+                                                        <template x-for="option in section.items" :key="option.key">
+                                                            <li>
+                                                                <button
+                                                                    type="button"
+                                                                    class="flex w-full items-baseline gap-3 px-3 py-1.5 text-left"
+                                                                    :class="options[cursor]?.key === option.key && 'bg-gold-soft'"
+                                                                    :data-active="options[cursor]?.key === option.key"
+                                                                    role="option"
+                                                                    x-on:mousemove="cursor = options.findIndex((candidate) => candidate.key === option.key)"
+                                                                    x-on:click="choose(option)"
+                                                                >
+                                                                    <span class="truncate text-ink" x-text="option.name"></span>
+                                                                    <span class="ml-auto shrink-0 text-xs text-muted tabular-nums" x-text="option.meta"></span>
+                                                                </button>
+                                                            </li>
+                                                        </template>
+                                                    </ul>
+                                                </li>
+                                            </template>
+                                            <li x-show="! options.length" class="px-3 py-4 text-muted">{{ __('Nothing matches.') }}</li>
+                                        </ul>
+
+                                        <p class="flex gap-4 border-t border-line bg-[#fafafa] px-3 py-1.5 text-[0.68rem] text-muted">
+                                            <span><kbd>↑</kbd> <kbd>↓</kbd> {{ __('move') }}</span>
+                                            <span><kbd>Enter</kbd> <span x-text="project ? @js(__('add row')) : @js(__('choose'))"></span></span>
+                                            <span><kbd>Esc</kbd> <span x-text="project ? @js(__('back')) : @js(__('close'))"></span></span>
+                                            <span x-show="! project && ! query" class="ml-auto">{{ __('Inactive projects show when you search') }}</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                @error('newRow.job_number') <p class="error-note mt-2">{{ $message }}</p> @enderror
+                                @error('newRow.category') <p class="error-note mt-2">{{ $message }}</p> @enderror
+                            </td>
+                        </tr>
+                    @endif
                 </tbody>
                 <tfoot>
                     <tr>

@@ -3,6 +3,7 @@
 namespace App\Imports;
 
 use App\Enums\Phase;
+use App\Models\MonthlyCost;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
@@ -47,6 +48,9 @@ class DashboardWorkbookImporter
     /** @var array<string, string> */
     protected array $periods = [];
 
+    /** @var array{lines: array<int, array<string, mixed>>, notes: array<int, array<string, string>>, months: int}|null Null when the workbook has no Costs sheet, so the last costs stay. */
+    protected ?array $costs = null;
+
     public function __construct(protected string $path) {}
 
     public function import(): WorkbookImportResult
@@ -72,11 +76,26 @@ class DashboardWorkbookImporter
 
             $this->restoreNotes($preservedNotes);
 
+            if ($this->costs !== null) {
+                DB::table('monthly_cost_notes')->delete();
+                DB::table('monthly_costs')->delete();
+
+                foreach (array_chunk($this->costs['lines'], 500) as $chunk) {
+                    DB::table('monthly_costs')->insert($chunk);
+                }
+
+                DB::table('monthly_cost_notes')->insert($this->costs['notes']);
+            }
+
             $businessDevelopmentCounts = $businessDevelopment->apply();
         });
 
         return new WorkbookImportResult(
-            counts: [...collect($this->rows)->map(fn (array $rows) => count($rows))->all(), ...$businessDevelopmentCounts],
+            counts: [
+                ...collect($this->rows)->map(fn (array $rows) => count($rows))->all(),
+                ...($this->costs === null ? [] : ['monthly_costs' => $this->costs['months']]),
+                ...$businessDevelopmentCounts,
+            ],
             warnings: [...$this->warnings, ...$businessDevelopment->warnings],
         );
     }
@@ -109,6 +128,12 @@ class DashboardWorkbookImporter
 
         if (in_array('Hardware', $sheets, true)) {
             $this->readHardware();
+        }
+
+        $this->costs = null;
+
+        if (in_array('Costs', $sheets, true)) {
+            $this->readCosts();
         }
 
         $this->rows['billing_periods'] = collect($this->periods)
@@ -517,6 +542,65 @@ class DashboardWorkbookImporter
             }
 
             $this->rows['hardware'][] = [...$record, 'created_at' => $now, 'updated_at' => $now];
+        }
+    }
+
+    /**
+     * One row per calendar month. "Month" may be any date in it or text such as
+     * "2026-01"; "Note" is optional; every other column is an expense category
+     * (Payroll, Rent, Software…), kept in the sheet's column order.
+     */
+    protected function readCosts(): void
+    {
+        $this->costs = ['lines' => [], 'notes' => [], 'months' => 0];
+        $seen = [];
+
+        foreach ($this->sheet('Costs') as $line => $row) {
+            $amounts = collect($row)
+                ->except(['Month', 'Note'])
+                ->filter(fn (mixed $value, int|string $category) => trim((string) $category) !== '')
+                ->map(fn (mixed $value) => $this->number($value))
+                ->filter(fn (?string $amount) => $amount !== null);
+
+            if (($row['Month'] ?? null) === null && $amounts->isEmpty()) {
+                continue;
+            }
+
+            $date = $this->date($row['Month'] ?? null);
+
+            if (! $date) {
+                $this->warn("Costs row {$line}: no month — skipped.");
+
+                continue;
+            }
+
+            $month = substr($date, 0, 7);
+
+            if (isset($seen[$month])) {
+                $this->warn("Costs row {$line}: {$month} is already on an earlier row — skipped.");
+
+                continue;
+            }
+
+            $seen[$month] = true;
+            $this->costs['months']++;
+
+            foreach (array_keys($row) as $seq => $category) {
+                if ($amounts->has($category)) {
+                    $name = trim((string) $category);
+
+                    $this->costs['lines'][] = [
+                        'month' => $month,
+                        'category' => strcasecmp($name, MonthlyCost::Payroll) === 0 ? MonthlyCost::Payroll : $name,
+                        'amount' => $amounts[$category],
+                        'seq' => $seq,
+                    ];
+                }
+            }
+
+            if ($note = $this->text($row['Note'] ?? null)) {
+                $this->costs['notes'][] = ['month' => $month, 'note' => $note];
+            }
         }
     }
 

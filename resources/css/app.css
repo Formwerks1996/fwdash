@@ -166,6 +166,14 @@
         @apply bg-white px-[1.1rem] pt-[1.05rem] pb-[1.15rem];
     }
 
+    .kpi.is-clickable {
+        @apply cursor-pointer transition-colors hover:bg-[#f7f8f9];
+    }
+
+    .kpi-more {
+        @apply mt-1.5 flex w-fit items-center gap-1 text-xs font-medium text-navy;
+    }
+
     .kpi-label {
         @apply text-xs font-medium tracking-[0.1em] text-muted uppercase;
     }
@@ -370,6 +378,27 @@
     .cell-input {
         @apply w-[7.2rem] border border-transparent bg-transparent px-2 py-1 text-right text-[0.78rem] hover:border-[#e2e4e6] focus:border-[#9db4c6] focus:ring-3 focus:ring-[rgba(75,143,187,0.12)] focus:outline-none disabled:text-[#b6bbc1];
         font-variant-numeric: tabular-nums;
+    }
+
+    .avatar {
+        @apply inline-grid size-6 shrink-0 place-items-center rounded-full border border-[#e4ddca] bg-[#f5f1e6] text-[0.6rem] font-semibold tracking-[0.03em] text-[#6b5c3c];
+    }
+
+    .avatar.is-empty {
+        @apply border-dashed border-[#c9cdd1] bg-transparent text-muted;
+    }
+
+    /* A person in a table cell that opens a menu to change them, as on Leads & PMs. */
+    .assignee {
+        @apply flex w-full min-w-0 items-center gap-2 border border-transparent px-1.5 py-1 text-left text-[0.8rem] text-ink transition-colors hover:border-[#e2e4e6] hover:bg-white focus:border-[#9db4c6] focus:outline-none;
+    }
+
+    .assignee.is-empty {
+        @apply text-muted;
+    }
+
+    .assignee.is-open {
+        @apply border-[#9db4c6] bg-white;
     }
 
     .field-input {

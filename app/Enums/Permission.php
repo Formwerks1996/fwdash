@@ -11,6 +11,7 @@ enum Permission: string
     case ViewFinancials = 'view financials';
     case EditBilling = 'edit billing';
     case EditOffice = 'edit office';
+    case ManageStaffCosts = 'manage staff costs';
     case ViewBusinessDevelopment = 'view business development';
     case EditBusinessDevelopment = 'edit business development';
     case EditTeam = 'edit team';

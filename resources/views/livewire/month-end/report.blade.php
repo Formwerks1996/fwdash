@@ -58,7 +58,7 @@
     @if(! $period)
         <div class="card text-sm text-muted">{{ __('No billing period has been entered yet.') }}</div>
     @else
-        <div class="kpis grid-cols-1 md:grid-cols-3">
+        <div @class(['kpis grid-cols-1', 'md:grid-cols-3' => ! isset($f['spent']), 'md:grid-cols-3 xl:grid-cols-5' => isset($f['spent'])])>
             <x-kpi :label="__('Revenue')" :value="Format::compact($f['total'])" dark>
                 {{ __('invoiced in :month', ['month' => $monthName]) }}
                 @if($f['change'] !== null)
@@ -82,6 +82,43 @@
             <x-kpi :label="__('Under $95/hr')" :value="(string) $f['under']['count']" :band="$f['under']['count'] ? RateBand::Bands['low'] : null">
                 {{ $f['under']['count'] ? $f['under']['names'] : __('nothing below the line') }}
             </x-kpi>
+            @isset($f['spent'])
+                <x-kpi
+                    :label="__('Spent')"
+                    :value="Format::compact($f['spent']['total'])"
+                    class="is-clickable"
+                    role="button"
+                    tabindex="0"
+                    wire:click="$dispatch('show-spending', { months: ['{{ $f['spent']['key'] }}'] })"
+                    x-on:keydown.enter="$el.click()"
+                >
+                    @if($f['spent']['basis'] === 'sheet')
+                        {{ Format::compact($f['spent']['payroll']) }} {{ __('payroll') }}, {{ Format::compact($f['spent']['overhead']) }} {{ __('overhead') }}
+                    @elseif($f['spent']['basis'] === 'staff')
+                        {{ __('estimate: staff time at cost, no overhead') }}
+                        @if($f['spent']['uncostedHours'])
+                            · {{ __(':hours h not costed', ['hours' => Format::number($f['spent']['uncostedHours'])]) }}
+                        @endif
+                    @else
+                        {{ __('no costs or hours for :month', ['month' => $monthName]) }}
+                    @endif
+                    <span class="kpi-more">{{ __('Where it went') }} <i class="ph ph-arrow-right"></i></span>
+                </x-kpi>
+                <x-kpi
+                    :label="$f['spent']['basis'] === 'staff' ? __('Profit (estimate)') : __('Profit')"
+                    :value="Format::compact($f['spent']['profit'])"
+                    :warn="$f['spent']['profit'] !== null && $f['spent']['profit'] < 0"
+                >
+                    @if($f['spent']['profit'] !== null)
+                        {{ Format::pct($f['spent']['margin'], 1) }} {{ __('margin') }} · {{ __('revenue less spent') }}
+                        @if($f['spent']['basis'] === 'staff')
+                            · {{ __('before overhead, so it reads high') }}
+                        @endif
+                    @else
+                        {{ __('nothing spent to set against it yet') }}
+                    @endif
+                </x-kpi>
+            @endisset
         </div>
 
         <section class="card">
@@ -99,6 +136,9 @@
                         <span class="flex items-center gap-1.5"><span class="inline-block w-4 border-t-[2.5px] border-dashed border-[#a9bccb]"></span>{{ __('Estimated') }}</span>
                     @endif
                     <span class="flex items-center gap-1.5"><span class="inline-block w-4 border-t-[1.5px] border-dashed border-muted"></span>{{ $f['year'] - 1 }}</span>
+                    @isset($f['chart']['spent'])
+                        <span class="flex items-center gap-1.5"><span class="inline-block size-2.5 rounded-sm bg-[#efd9d0]"></span>{{ __('Spent') }}</span>
+                    @endisset
                 </div>
             </div>
             <x-chart kind="monthEndRevenue" :data="$f['chart']" height="14rem" class="mt-4" x-on:chart-click="$wire.openMonth($event.detail.index)" />
@@ -199,4 +239,6 @@
 
         @include('reports.partials.provenance')
     @endif
+
+    <livewire:spending-breakdown />
 </div>

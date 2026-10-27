@@ -73,8 +73,22 @@ class ProjectRoles extends Component
         $team = TeamMember::active()->orderBy('name')->get();
 
         return view('livewire.projects.roles', [
-            'leads' => $team->filter(fn (TeamMember $person) => $person->isPartner()),
-            'team' => $team,
+            'people' => $team->mapWithKeys(fn (TeamMember $person) => [$person->name => [
+                'name' => $person->name,
+                'label' => $person->displayName(),
+                'initials' => self::initials($person->displayName()),
+                'hint' => match ($person->tier) {
+                    'partner' => __('Partner'),
+                    'pm' => __('PM'),
+                    default => '',
+                },
+                'partner' => $person->isPartner(),
+            ]]),
         ]);
+    }
+
+    public static function initials(string $name): string
+    {
+        return Str::of($name)->explode(' ')->filter()->take(2)->map(fn (string $part) => Str::upper(Str::substr($part, 0, 1)))->implode('');
     }
 }

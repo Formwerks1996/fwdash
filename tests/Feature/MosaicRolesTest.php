@@ -53,11 +53,14 @@ it('refuses a folder that is not a Mosaic pull', function () {
     $this->artisan('mosaic:import-roles', ['path' => sys_get_temp_dir().'/nowhere-'.uniqid()])->assertFailed();
 });
 
-it('lists the projects Mosaic has you on first when adding a row', function () {
+it('lists the projects Mosaic has you on first, then the rest by type, when adding a row', function () {
     CarbonImmutable::setTestNow('2026-10-28 10:00');
-    Project::create(['job_number' => '#8016', 'job_name' => 'Seaton', 'active' => true]);
-    Project::create(['job_number' => '#8044', 'job_name' => 'Cooper Townhouse', 'active' => true]);
+    Project::create(['job_number' => '#8016', 'job_name' => 'Seaton', 'division' => 'MF', 'active' => true]);
+    Project::create(['job_number' => '#8044', 'job_name' => 'Cooper Townhouse', 'division' => 'CHC', 'active' => true]);
+    Project::create(['job_number' => '#8050', 'job_name' => 'Alder Court', 'division' => 'MF', 'active' => true]);
+    Project::create(['job_number' => '#8060', 'job_name' => 'Birch Row', 'active' => true]);
     Project::create(['job_number' => '#7001', 'job_name' => 'Archive Lane', 'active' => false]);
+    Project::create(['job_number' => '#7002', 'job_name' => 'Old Mill', 'division' => 'MF', 'active' => false]);
 
     $user = User::factory()->staff()->create(['email' => 'pat@formwerks.ca']);
     MosaicProjectRole::create(['email' => 'pat@formwerks.ca', 'job_number' => '#8016', 'role' => 'Technologist']);
@@ -67,7 +70,10 @@ it('lists the projects Mosaic has you on first when adding a row', function () {
     $groups = Livewire::actingAs($user)->test(Timesheet::class)->viewData('projectGroups');
 
     expect($groups->map->pluck('job_number')->toArray())->toBe([
-        'Your projects' => ['#8016', '#7001'],
-        'Other active projects' => ['#8044'],
+        'Your projects' => ['#7001', '#8016'],
+        'Multi-family' => ['#8050'],
+        'CHC' => ['#8044'],
+        'Other' => ['#8060'],
+        'Inactive' => ['#7002'],
     ]);
 });
