@@ -23,7 +23,7 @@ it('keeps the month note when a percentage is changed on the project page', func
         ->and($entry->note)->toBe('Drawings issued');
 });
 
-it('shows staff only the projects they are on', function () {
+it('shows staff only their own projects', function () {
     Project::create(['job_number' => '#8114', 'job_name' => 'Loftus 2', 'active' => true]);
     Project::create(['job_number' => '#8115', 'job_name' => 'Loftus 3', 'active' => true]);
     TeamMember::create(['name' => 'PatTester', 'email' => 'pat.tester@formwerks.ca', 'tier' => 'staff']);
@@ -31,10 +31,23 @@ it('shows staff only the projects they are on', function () {
 
     $this->actingAs(User::factory()->staff()->create(['email' => 'pat.tester@formwerks.ca']));
 
-    $this->get(route('projects.index'))->assertOk()->assertSee('Loftus 2')->assertDontSee('Loftus 3');
+    $this->get(route('projects.index', ['show' => 'all']))->assertOk()->assertSee('Loftus 2')->assertDontSee('Loftus 3')->assertDontSee('See all');
     $this->get(route('projects.show', '#8114'))->assertOk();
     $this->get(route('projects.show', '#8115'))->assertForbidden();
+});
 
-    $this->actingAs(User::factory()->manager()->create())
-        ->get(route('projects.index'))->assertSee('Loftus 2')->assertSee('Loftus 3');
+it('starts managers on their own projects with a switch to see all, and always shows admins all', function () {
+    Project::create(['job_number' => '#8114', 'job_name' => 'Loftus 2', 'active' => true]);
+    Project::create(['job_number' => '#8115', 'job_name' => 'Loftus 3', 'active' => true]);
+    TeamMember::create(['name' => 'PatTester', 'email' => 'pat.tester@formwerks.ca', 'tier' => 'pm']);
+    ProjectAssignment::create(['job_number' => '#8114', 'member_name' => 'PatTester', 'role' => 'pm', 'set_by' => 'test', 'set_at' => now()]);
+
+    $this->actingAs(User::factory()->manager()->create(['email' => 'pat.tester@formwerks.ca']));
+
+    $this->get(route('projects.index'))->assertSee('See all')->assertSee('Loftus 2')->assertDontSee('Loftus 3');
+    $this->get(route('projects.index', ['show' => 'all']))->assertSee('Loftus 2')->assertSee('Loftus 3');
+    $this->get(route('projects.show', '#8115'))->assertOk();
+
+    $this->actingAs(User::factory()->admin()->create())
+        ->get(route('projects.index'))->assertSee('Loftus 2')->assertSee('Loftus 3')->assertDontSee('See all');
 });

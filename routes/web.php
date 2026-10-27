@@ -10,6 +10,8 @@ use App\Http\Controllers\WorkbookImportsController;
 use App\Livewire\Hardware;
 use App\Livewire\Invoicing;
 use App\Livewire\Overview;
+use App\Livewire\Projects\ProjectRoles;
+use App\Livewire\Projects\ProjectsCreate;
 use App\Livewire\Projects\ProjectsIndex;
 use App\Livewire\Projects\ProjectsShow;
 use App\Livewire\Software;
@@ -35,8 +37,15 @@ Route::middleware('auth')->group(function () {
         Route::get('hardware', Hardware::class)->name('hardware');
     });
 
+    Route::get('projects/leads-and-pms', ProjectRoles::class)
+        ->middleware('can:'.Permission::EditTeam->value)
+        ->name('project-roles');
+
     Route::middleware('can:'.Permission::ViewProjects->value)->group(function () {
         Route::get('projects', ProjectsIndex::class)->name('projects.index');
+        Route::get('projects/new', ProjectsCreate::class)
+            ->middleware('can:'.Permission::EditBilling->value)
+            ->name('projects.create');
         Route::get('projects/{jobNumber}', ProjectsShow::class)->name('projects.show');
     });
 

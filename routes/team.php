@@ -15,6 +15,4 @@ Route::get('my-week', MyWeek::class)->name('my-week');
 
 Route::get('alerts', Alerts::class)->middleware('can:'.Permission::ViewAlerts->value)->name('alerts');
 
-Route::middleware('can:'.Permission::ViewFinancials->value)->group(function () {
-    Route::get('pm-desk/{member?}', PmDesk::class)->name('pm-desk');
-});
+Route::get('pm-desk/{member?}', PmDesk::class)->middleware('can:'.Permission::ViewPmDesk->value)->name('pm-desk');

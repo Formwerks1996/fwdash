@@ -20,6 +20,7 @@ enum Role: string
             self::Admin => Permission::cases(),
             self::Manager => [
                 Permission::ViewProjects,
+                Permission::ViewPmDesk,
                 Permission::ViewAlerts,
                 Permission::ViewOffice,
                 Permission::ViewFinancials,
@@ -30,7 +31,7 @@ enum Role: string
                 Permission::EditTeam,
                 Permission::ViewTimesheets,
             ],
-            self::Staff => [Permission::ViewProjects, Permission::ViewAlerts, Permission::ViewTimesheets],
+            self::Staff => [Permission::ViewProjects, Permission::ViewPmDesk, Permission::ViewAlerts, Permission::ViewTimesheets],
         };
     }
 }

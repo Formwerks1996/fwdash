@@ -48,7 +48,7 @@
                 <dl class="mt-3 space-y-3">
                     <div><dt class="font-medium">{{ __('Jump to anything') }}</dt><dd class="text-ink-2">{{ __('Press ⌘K (or /) and type a page name, a job number, a project or a developer. Arrow keys to choose, Enter to open.') }}</dd></div>
                     <div><dt class="font-medium">{{ __('Links that stay put') }}</dt><dd class="text-ink-2">{{ __('Every page, filter and project has its own address. Copy it and send it; it opens the same page for whoever you send it to.') }}</dd></div>
-                    <div><dt class="font-medium">{{ __('Sticky notes') }}</dt><dd class="text-ink-2">{{ __('Add note, at the bottom right of any page, drops a sticky note there. Drag it by its top bar. The note icon at the top lists every note. Notes are shared with everyone who signs in.') }}</dd></div>
+                    <div><dt class="font-medium">{{ __('Sticky notes') }}</dt><dd class="text-ink-2">{{ __('Notes left on a page show there; drag one by its top bar. The note icon at the bottom right lists every note. Notes are shared with everyone who signs in.') }}</dd></div>
                     <div><dt class="font-medium">{{ __('New Pursuit') }}</dt><dd class="text-ink-2">{{ __('The button at the top adds a pursuit to the Pipeline from any page.') }}</dd></div>
                 </dl>
             </section>

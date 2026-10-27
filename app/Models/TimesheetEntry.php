@@ -29,9 +29,6 @@ class TimesheetEntry extends Model
     /** @use HasFactory<TimesheetEntryFactory> */
     use HasFactory;
 
-    /** Formwerks' working day, as Mosaic's capacity had it. */
-    public const DailyCapacity = 7.5;
-
     protected function casts(): array
     {
         return [

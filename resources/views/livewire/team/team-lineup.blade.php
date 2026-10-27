@@ -11,8 +11,7 @@
     $shared = ['tree' => $tree, 'tags' => $tags, 'badges' => $badges, 'projects' => $projects, 'canEdit' => $canEdit];
 
     $asking = collect($badges)
-        ->filter(fn (array $badge) => in_array($badge['type'], ['deadline', 'help'], true))
-        ->sortBy(fn (array $badge) => $badge['type'] === 'deadline' ? 0 : 1);
+        ->filter(fn (array $badge) => $badge['type'] === 'help');
     $available = collect($badges)->filter(fn (array $badge) => $badge['type'] === 'available');
 
     $payload = [
@@ -25,99 +24,95 @@
 
 <div class="lu-page" data-lineup="{{ json_encode($payload) }}">
     <style>
-        .lu-page { max-width: 1180px; --lu-a: #00263e; --lu-b: #85754e; --lu-hair: #d8cfb4; --lu-hot: #f5f1e6; color: #0f2233; }
-        .lu-caps { font-size: .75rem; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; color: #5c6873; }
-        .lu-top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1rem 2rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--lu-hair); }
-        .lu-sub { color: #44515e; font-size: .92rem; margin-top: .25rem; }
-        .lu-week { display: flex; align-items: center; gap: .25rem; }
-        .lu-nav { width: 2rem; height: 2rem; cursor: pointer; font-size: 1rem; }
+        .lu-page { --lu-a: #00263e; --lu-b: #85754e; --lu-hair: #d8cfb4; --lu-hot: #f5f1e6; color: #0f2233; }
+        .lu-caps { font-size: .7rem; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; color: #5c6873; }
+        .lu-top { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.5rem; padding-bottom: .6rem; border-bottom: 1px solid var(--lu-hair); }
+        .lu-top h1 { font-size: 1.5rem; line-height: 1.2; margin: 0; }
+        .lu-week { display: flex; align-items: center; gap: .1rem; }
+        .lu-nav { width: 1.6rem; height: 1.6rem; cursor: pointer; font-size: .9rem; }
         .lu-nav:hover { color: #6b5c3c; }
-        .lu-week-label { text-align: center; min-width: 11rem; }
-        .lu-week-label b { display: block; font-weight: 400; font-size: 1.15rem; }
-        .lu-actions { display: flex; gap: 1.25rem; align-items: baseline; }
-        .lu-link { border-bottom: 1px solid transparent; padding: .25rem 0; cursor: pointer; font-size: .75rem; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; color: #44515e; }
+        .lu-week-label { display: flex; align-items: baseline; gap: .5rem; white-space: nowrap; }
+        .lu-week-label b { font-weight: 500; font-size: .95rem; }
+        .lu-actions { display: flex; gap: 1rem; align-items: baseline; margin-left: auto; }
+        .lu-link { border-bottom: 1px solid transparent; padding: .15rem 0; cursor: pointer; font-size: .7rem; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; color: #44515e; }
         .lu-link:hover { color: #0f2233; border-bottom-color: var(--lu-b); }
         .lu-link[disabled] { opacity: .35; cursor: default; border-bottom-color: transparent; }
         .lu-link.lu-erase, .lu-link.lu-erase:hover { color: #c62828; }
         .lu-link.lu-erase:hover { border-bottom-color: #c62828; }
         .lu-erase-ask { display: inline-flex; gap: .7rem; align-items: baseline; font-size: .78rem; }
-        .lu-sides { display: grid; grid-template-columns: 1fr 1fr; padding-top: 2rem; }
-        .lu-side { padding: 0 2.25rem .5rem; min-width: 0; transition: background .15s; }
-        .lu-side:first-child { padding-left: 0; border-right: 1px solid var(--lu-hair); }
-        .lu-side:last-child { padding-right: 0; }
+        .lu-hand { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem; padding: .45rem 0; border-bottom: 1px solid #ece6d6; font-size: .8rem; }
+        .lu-hand > .lu-caps { margin-right: .25rem; }
+        .lu-hand-sep { width: 1px; align-self: stretch; background: #e4e6e8; margin: 0 .35rem; }
+        .lu-chip { display: inline-flex; align-items: center; gap: .35rem; padding: .1rem .5rem; background: #fff; border: 1px solid #e4e6e8; white-space: nowrap; max-width: 22rem; overflow: hidden; text-overflow: ellipsis; }
+        .lu-chip small { color: #5c6873; font-size: .75rem; overflow: hidden; text-overflow: ellipsis; }
+        .lu-dot { flex: none; width: .5rem; height: .5rem; border-radius: 50%; display: inline-block; background: #f6c945; }
+        .lu-chip-available .lu-dot { background: #2e7d4f; }
+        .lu-board { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(200px, 250px); gap: 1rem; padding-top: .75rem; align-items: start; }
+        .lu-side { min-width: 0; display: grid; gap: .5rem; align-content: start; transition: background .15s; }
         .lu-a { --lu-c: var(--lu-a); } .lu-b { --lu-c: var(--lu-b); }
-        .lu-phead { padding: .25rem .6rem .9rem; margin: 0 -.6rem .5rem; border-bottom: 2px solid var(--lu-c); }
-        .lu-phead h2 { font-size: clamp(1.5rem, 2.4vw, 2rem); font-weight: 400; letter-spacing: .12em; text-transform: uppercase; line-height: 1.15; margin-bottom: .3rem; display: inline-block; }
-        .lu-direct { margin-top: .6rem; display: flex; flex-wrap: wrap; gap: .2rem .9rem; align-items: baseline; }
-        .lu-teams { display: grid; gap: .2rem; }
-        .lu-team { padding: .7rem .6rem .6rem; margin: 0 -.6rem; transition: background .15s; }
-        .lu-team-head { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; }
-        .lu-people { list-style: none; margin: .35rem 0 0; padding: 0 0 0 .85rem; border-left: 1px solid var(--lu-c); display: grid; gap: 1px; }
-        .lu-people .lu-people { margin-top: .1rem; margin-bottom: .25rem; }
-        .lu-row { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; }
-        .lu-none { font-size: .82rem; color: #5c6873; font-style: italic; padding: .1rem 0 .1rem .5rem; }
-        .lu-empty { color: #5c6873; font-size: .9rem; padding: 1.4rem .6rem; border: 1px dashed #e4e6e8; margin-top: .4rem; text-align: center; }
-        .lu-name { display: inline-flex; align-items: baseline; gap: .1rem; min-width: 0; flex-wrap: wrap; }
-        .lu-who { display: inline-flex; align-items: baseline; padding: .18rem .5rem; margin-left: -.5rem; font-size: .95rem; cursor: grab; text-align: left; user-select: none; -webkit-user-select: none; touch-action: none; transition: background .12s, opacity .2s; }
-        .lu-who.is-static { cursor: default; touch-action: auto; }
-        .lu-who:hover { background: #f5f6f7; }
-        .lu-who.lu-lead { font-size: 1.2rem; }
-        .lu-who.is-sel { background: var(--lu-hot); outline: 1px solid var(--lu-b); }
+        .lu-phead { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; background: var(--lu-c); color: #fff; padding: .4rem .7rem; }
+        .lu-phead h2 { font-size: .95rem; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; line-height: 1.2; display: inline-block; }
+        .lu-phead-meta { font-size: .7rem; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; opacity: .85; white-space: nowrap; }
+        .lu-direct { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; }
+        .lu-direct > .lu-caps { margin-right: .2rem; }
+        .lu-teams { display: grid; gap: .4rem; }
+        .lu-team { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .3rem; padding: .35rem; background: #faf8f2; border: 1px solid #ece6d6; border-left: 3px solid var(--lu-c); transition: background .15s; }
+        .lu-grid { display: contents; }
+        .lu-branch { display: contents; }
+        .lu-nest { display: inline-flex; flex-wrap: wrap; gap: .3rem; padding-left: .3rem; border-left: 2px solid #e4ddca; }
+        .lu-slot { font-size: .75rem; color: #5c6873; font-style: italic; padding: .2rem .4rem; align-self: center; }
+        .lu-none { font-size: .78rem; color: #5c6873; font-style: italic; }
+        .lu-empty { color: #5c6873; font-size: .8rem; padding: .8rem .6rem; border: 1px dashed #d8cfb4; text-align: center; }
+        .lu-card { position: relative; display: inline-flex; align-items: center; gap: .4rem; max-width: 100%; min-width: 0; padding: .2rem .5rem .2rem .25rem; background: #fff; border: 1px solid #e4e6e8; border-left: 3px solid #e4e6e8; box-shadow: 0 1px 2px rgba(0, 20, 40, .05); cursor: grab; font-size: .82rem; user-select: none; -webkit-user-select: none; touch-action: none; transition: box-shadow .12s, border-color .12s, opacity .2s, background .12s; }
+        .lu-card:hover { box-shadow: 0 3px 10px rgba(0, 20, 40, .1); border-color: #cfd4d9; }
+        .lu-card:focus-visible { outline: 2px solid var(--lu-a); outline-offset: 1px; }
+        .lu-card.is-static { cursor: default; touch-action: auto; }
+        .lu-card.lu-lead { border-left-color: var(--lu-c); }
+        .lu-card.lu-lead .lu-card-name { font-weight: 600; }
+        .lu-card.lu-lead .lu-avatar { background: var(--lu-c); color: #fff; border-color: var(--lu-c); }
+        .lu-card-help { border-left-color: #f6c945; }
+        .lu-card-available { border-left-color: #2e7d4f; }
+        .lu-card.is-sel { background: var(--lu-hot); outline: 2px solid var(--lu-b); }
+        .lu-avatar { flex: none; display: inline-grid; place-items: center; width: 1.45rem; height: 1.45rem; border-radius: 50%; background: #f5f1e6; border: 1px solid #e4ddca; color: #6b5c3c; font-size: .62rem; font-weight: 600; letter-spacing: .03em; }
+        .lu-card-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+        .lu-card-count { font-size: .7rem; color: #5c6873; background: #f5f6f7; padding: 0 .3rem; border-radius: 1rem; }
         .lu-dim { opacity: .28; }
-        .lu-badge { display: inline-flex; align-items: baseline; gap: .3rem; padding: .05rem .4rem; margin-left: .35rem; cursor: pointer; font-size: .75rem; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; vertical-align: middle; white-space: nowrap; }
+        .lu-badge { display: inline-flex; align-items: center; padding: 0 .3rem; cursor: pointer; font-size: .62rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; line-height: 1.5; }
         .lu-badge[disabled] { cursor: default; }
-        .lu-badge small { font-size: .75rem; letter-spacing: 0; text-transform: none; font-weight: 400; max-width: 11rem; overflow: hidden; text-overflow: ellipsis; }
-        .lu-badge-deadline { background: #c62828; color: #fff; }
         .lu-badge-help { background: #f6c945; color: #3d2f00; }
         .lu-badge-available { background: #2e7d4f; color: #fff; }
-        .lu-badge-add, .lu-tag-add { padding: 0 .25rem; margin-left: .15rem; font-size: .78rem; color: #5c6873; cursor: pointer; opacity: 0; transition: opacity .12s; }
-        .lu-name:hover .lu-badge-add, .lu-name:hover .lu-tag-add, .lu-badge-add:focus-visible, .lu-tag-add:focus-visible { opacity: 1; }
-        .lu-badge-add:hover { color: #c62828; }
-        .lu-tag-add:hover { color: #6b5c3c; }
-        .lu-dragging .lu-badge-add, .lu-dragging .lu-tag-add { display: none; }
-        .lu-ptag { border: 1px solid var(--lu-hair); background: #faf8f2; color: #44515e; padding: .05rem .45rem; margin-left: .35rem; font-size: .75rem; cursor: pointer; max-width: 15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+        .lu-card-tools { position: absolute; top: -.7rem; right: -.3rem; display: none; gap: 1px; background: #fff; border: 1px solid #e4e6e8; box-shadow: 0 2px 6px rgba(0, 20, 40, .12); z-index: 2; }
+        .lu-card:hover .lu-card-tools, .lu-card:focus-within .lu-card-tools { display: inline-flex; }
+        .lu-dragging .lu-card-tools { display: none !important; }
+        .lu-badge-add, .lu-tag-add { display: inline-grid; place-items: center; width: 1.35rem; height: 1.35rem; font-size: .8rem; color: #5c6873; cursor: pointer; }
+        .lu-badge-add:hover { color: #c62828; background: #f5f6f7; }
+        .lu-tag-add:hover { color: #6b5c3c; background: #f5f6f7; }
+        .lu-ptag { border: 1px solid var(--lu-hair); background: #faf8f2; color: #6b5c3c; padding: 0 .3rem; font-size: .7rem; font-weight: 500; cursor: pointer; white-space: nowrap; line-height: 1.5; }
         .lu-ptag[disabled] { cursor: default; }
-        .lu-ptag b { font-weight: 500; color: #6b5c3c; }
         .lu-ptag:hover { border-color: var(--lu-b); }
-        .lu-hand { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 1rem 2.5rem; margin-top: 1.5rem; padding: .9rem 1.1rem; border: 1px solid #e4e6e8; border-left-color: #c62828; background: #fff; }
-        .lu-hand.is-quiet { display: flex; flex-wrap: wrap; gap: 1rem; align-items: baseline; border-left-color: #e4e6e8; background: none; }
-        .lu-hand-col { display: grid; gap: .35rem; align-content: start; min-width: 0; }
-        .lu-hand-row { display: grid; grid-template-columns: auto auto auto minmax(0, 1fr); gap: .55rem; align-items: baseline; font-size: .9rem; }
-        .lu-hand-row b { font-weight: 400; }
-        .lu-hand-what { font-size: .8rem; color: #44515e; }
-        .lu-hand-deadline .lu-hand-what { color: #c62828; font-weight: 500; }
-        .lu-hand-meta { font-size: .78rem; color: #5c6873; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .lu-dot { width: .55rem; height: .55rem; border-radius: 50%; display: inline-block; background: #f6c945; }
-        .lu-hand-deadline .lu-dot { background: #c62828; }
-        .lu-dot-available { background: #2e7d4f; margin-right: .4rem; }
-        .lu-hand-free { display: flex; flex-wrap: wrap; gap: .3rem 1.2rem; font-size: .9rem; }
-        .lu-hand-free small { color: #5c6873; font-size: .75rem; }
         .lu-dragging .lu-who { cursor: grabbing; }
-        .lu-dragging .lu-sides .lu-who:not(.lu-nodrop) { box-shadow: inset 0 -1px 0 var(--lu-hair); }
+        .lu-dragging .lu-board .lu-who:not(.lu-nodrop) { border-style: dashed; }
         .lu-who.lu-nodrop { opacity: .25; }
-        .lu-hot-name, .lu-who.lu-hot-name { background: var(--lu-a) !important; color: #fff !important; box-shadow: none !important; opacity: 1 !important; }
-        .lu-phead h2.lu-hot-name { padding: 0 .4rem; margin-left: -.4rem; }
+        .lu-hot-name, .lu-who.lu-hot-name { background: var(--lu-a) !important; color: #fff !important; border-color: var(--lu-a) !important; box-shadow: 0 4px 14px rgba(0, 20, 40, .2) !important; opacity: 1 !important; }
+        .lu-who.lu-hot-name .lu-card-count { background: rgba(255, 255, 255, .15); color: #fff; }
+        .lu-phead h2.lu-hot-name { padding: 0 .4rem; margin-left: -.4rem; outline: 1px solid #fff; }
         .lu-hot { background: var(--lu-hot) !important; }
-        .lu-tray { margin-top: 2.25rem; padding: 1rem 1.1rem; background: #fdfdfd; border-top: 1px solid var(--lu-hair); display: grid; gap: .6rem; transition: background .15s; }
-        .lu-tray-head { display: flex; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
-        .lu-tray-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem 2rem; }
-        .lu-tray-col { display: flex; flex-direction: column; align-items: flex-start; gap: .1rem; min-width: 0; }
-        .lu-tray-col > .lu-caps { margin-bottom: .3rem; }
-        .lu-tray-col .lu-none { padding-left: 0; }
-        .lu-tray-item { display: inline-flex; align-items: baseline; max-width: 100%; }
-        .lu-tray-item .lu-name { flex-wrap: nowrap; white-space: nowrap; }
-        .lu-team-head .lu-caps, .lu-row > .lu-caps { white-space: nowrap; }
-        .lu-plus { font-size: .75rem; color: #5c6873; margin-left: -.2rem; }
-        .lu-history { margin-top: 2rem; }
-        .lu-hist-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding-bottom: .5rem; border-bottom: 1px solid var(--lu-hair); }
-        .lu-hist-row { display: grid; width: 100%; grid-template-columns: 9.5rem 5.5rem minmax(0, 1fr) minmax(0, 1fr) 7rem 7.5rem; align-items: baseline; gap: 1rem; padding: .6rem .5rem; border-bottom: 1px solid #e4e6e8; cursor: pointer; font-size: .88rem; color: #44515e; text-align: left; }
+        .lu-tray { display: grid; gap: .6rem; align-content: start; padding: .5rem .6rem .7rem; background: #fdfdfd; border: 1px solid #e4e6e8; transition: background .15s; }
+        .lu-tray-head { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; }
+        .lu-tray-col { display: flex; flex-wrap: wrap; gap: .3rem; align-content: start; min-width: 0; }
+        .lu-tray-col > .lu-caps { flex-basis: 100%; }
+        .lu-history { margin-top: 1rem; border-top: 1px solid var(--lu-hair); }
+        .lu-history > summary { list-style: none; cursor: pointer; padding: .5rem 0; }
+        .lu-history > summary::-webkit-details-marker { display: none; }
+        .lu-history > summary:hover .lu-caps { color: #0f2233; }
+        .lu-hist-row { display: grid; width: 100%; grid-template-columns: 9.5rem 5.5rem minmax(0, 1fr) minmax(0, 1fr) 7rem 7.5rem; align-items: baseline; gap: 1rem; padding: .45rem .5rem; border-bottom: 1px solid #e4e6e8; cursor: pointer; font-size: .85rem; color: #44515e; text-align: left; }
         .lu-hist-row:hover { background: #f5f6f7; }
         .lu-hist-row.is-on { background: var(--lu-hot); }
-        .lu-hist-date { font-size: .98rem; color: #0f2233; }
+        .lu-hist-date { font-size: .92rem; color: #0f2233; }
         .lu-hist-side b { font-weight: 500; color: #0f2233; }
         .lu-hist-tag { display: flex; justify-content: flex-end; }
-        .lu-tag { font-size: .75rem; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; padding: .12rem .45rem; border: 1px solid var(--lu-a); color: var(--lu-a); white-space: nowrap; }
-        .lu-status { margin-top: 1rem; font-size: .75rem; color: #5c6873; min-height: 1em; }
+        .lu-tag { font-size: .7rem; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; padding: .1rem .45rem; border: 1px solid var(--lu-a); color: var(--lu-a); white-space: nowrap; }
+        .lu-status { margin-top: .5rem; font-size: .75rem; color: #5c6873; min-height: 1em; }
         .lu-status.is-bad { color: #b33a32; }
         .lu-toast { position: fixed; left: 50%; bottom: 1.25rem; transform: translateX(-50%) translateY(1rem); opacity: 0; pointer-events: none; background: #00263e; color: #fff; border-bottom: 2px solid #85754e; padding: .6rem 1rem; display: flex; gap: .9rem; align-items: center; font-size: .88rem; transition: opacity .2s, transform .2s; z-index: 1000; }
         .lu-toast.is-on { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
@@ -142,37 +137,29 @@
         .lu-pick-sec { margin: .35rem 0 .15rem; padding: 0 .35rem; font-size: .75rem; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; color: #5c6873; }
         .lu-badge-opt { display: grid; grid-template-columns: 6.2rem 1fr; align-items: center; gap: .5rem; padding: .4rem .3rem; text-align: left; font-size: .84rem; cursor: pointer; color: #44515e; }
         .lu-badge-opt .lu-badge { margin: 0; justify-self: start; }
-        @media (max-width: 980px) {
+        @media (max-width: 1100px) {
+            .lu-board { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+            .lu-tray { grid-column: 1 / -1; }
             .lu-hist-row { grid-template-columns: 1fr auto; }
             .lu-hist-row > .lu-caps, .lu-hist-side, .lu-hist-loose { grid-column: 1 / -1; }
         }
-        @media (max-width: 820px) {
-            .lu-hand { grid-template-columns: 1fr; }
-            .lu-sides { grid-template-columns: 1fr; gap: 2rem; }
-            .lu-side, .lu-side:first-child, .lu-side:last-child { padding: 0; border: 0; }
-        }
-        @media (max-width: 640px) { .lu-tray-cols { grid-template-columns: 1fr; } }
+        @media (max-width: 700px) { .lu-board { grid-template-columns: 1fr; } }
     </style>
 
     <header class="lu-top">
-        <div>
-            <h1 class="page-title">{{ __('Team Lineup') }}</h1>
-            <p class="lu-sub">
-                {{ __('Who goes to whom this week.') }}
-                @if($canEdit) {{ __('Drag any name onto another name to put them under that person.') }} @endif
-            </p>
-        </div>
+        <h1 class="page-title">{{ __('Team Lineup') }}</h1>
         <div class="lu-week">
             <button type="button" class="lu-nav" wire:click="previousWeek" aria-label="{{ __('Previous week') }}"><i class="ph ph-caret-left"></i></button>
             <div class="lu-week-label">
                 <b>{{ $monday->format('M j') }} – {{ $friday->format('M j') }}</b>
-                <span class="lu-caps">{{ __('Week') }} {{ $monday->isoWeek() }} · {{ $friday->format('Y') }}@if($isThisWeek) · {{ __('this week') }}@endif</span>
+                <span class="lu-caps">{{ __('Wk') }} {{ $monday->isoWeek() }}@if($isThisWeek) · {{ __('this week') }}@endif</span>
             </div>
             <button type="button" class="lu-nav" wire:click="nextWeek" aria-label="{{ __('Next week') }}"><i class="ph ph-caret-right"></i></button>
         </div>
         <div class="lu-actions">
             <button type="button" class="lu-link" wire:click="thisWeek" @disabled($isThisWeek)>{{ __('This week') }}</button>
             @if($canEdit)
+                <button type="button" class="lu-link" wire:click="copyLastWeek">{{ __('Copy last week') }}</button>
                 @if($confirmErase)
                     <span class="lu-erase-ask">
                         {{ __('Erase this week?') }}
@@ -182,7 +169,6 @@
                 @else
                     <button type="button" class="lu-link lu-erase" wire:click="$set('confirmErase', true)" title="{{ __('Reset this week to the defaults') }}">{{ __('Erase') }}</button>
                 @endif
-                <button type="button" class="lu-link" wire:click="copyLastWeek">{{ __('Copy last week') }}</button>
             @endif
         </div>
     </header>
@@ -190,49 +176,37 @@
     @if(! $tree->people)
         <div class="card mt-6 text-sm text-muted">{{ __('No team members yet. Add people in the roster.') }}</div>
     @else
-        @if($asking->isEmpty() && $available->isEmpty())
-            <section class="lu-hand is-quiet">
-                <span class="lu-caps">{{ __('Needs a hand') }}</span>
-                <span class="lu-none">{{ __('No deadlines or help requests flagged this week.') }} @if($canEdit) {{ __('Hover a name and click the flag to add one.') }} @endif</span>
-            </section>
-        @else
+        @if($asking->isNotEmpty() || $available->isNotEmpty())
             <section class="lu-hand">
-                <div class="lu-hand-col">
-                    <span class="lu-caps">{{ __('Needs a hand') }} · {{ $asking->count() }}</span>
-                    @forelse($asking as $name => $badge)
+                @if($asking->isNotEmpty())
+                    <span class="lu-caps">{{ __('Needs help') }}</span>
+                    @foreach($asking as $name => $badge)
                         @php
                             $tag = $tags[$name] ?? null;
                             $project = $tag ? ($projects[$tag] ?? null) : null;
                             $up = $tree->parentOf($name);
                         @endphp
-                        <div class="lu-hand-row lu-hand-{{ $badge['type'] }}" wire:key="lu-ask-{{ $name }}">
-                            <span class="lu-dot"></span>
-                            <b>{{ $tree->people[$name]->displayName() }}</b>
-                            <span class="lu-hand-what">{{ LineupTree::Badges[$badge['type']]['label'] }}@isset($badge['note']) · {{ $badge['note'] }}@endisset</span>
-                            <span class="lu-hand-meta">
-                                @if($project){{ $project['number'] }} {{ $project['title'] }}@endif{{ $project && $up ? ' · ' : '' }}@if($up){{ __('with :first', ['first' => $tree->people[$up]->firstName()]) }}@endif
-                            </span>
-                        </div>
-                    @empty
-                        <span class="lu-none">{{ __('No one has asked this week.') }}</span>
-                    @endforelse
-                </div>
-                <div class="lu-hand-col">
-                    <span class="lu-caps">{{ __('Available to help') }} · {{ $available->count() }}</span>
-                    @if($available->isNotEmpty())
-                        <div class="lu-hand-free">
-                            @foreach($available as $name => $badge)
-                                <span wire:key="lu-free-{{ $name }}"><span class="lu-dot lu-dot-available"></span>{{ $tree->people[$name]->displayName() }}@isset($badge['note']) <small>{{ $badge['note'] }}</small>@endisset</span>
-                            @endforeach
-                        </div>
-                    @else
-                        <span class="lu-none">{{ __('No one has marked themselves available yet.') }}</span>
-                    @endif
-                </div>
+                        <span class="lu-chip lu-chip-{{ $badge['type'] }}" wire:key="lu-ask-{{ $name }}" title="{{ LineupTree::Badges[$badge['type']]['label'] }}{{ $project ? ' · '.$project['number'].' '.$project['title'] : '' }}{{ $up ? ' · '.__('with :first', ['first' => $tree->people[$up]->firstName()]) : '' }}">
+                            <span class="lu-dot"></span>{{ $tree->people[$name]->firstName() }}
+                            <small>{{ $badge['note'] ?? LineupTree::Badges[$badge['type']]['label'] }}</small>
+                        </span>
+                    @endforeach
+                @endif
+                @if($asking->isNotEmpty() && $available->isNotEmpty())
+                    <span class="lu-hand-sep"></span>
+                @endif
+                @if($available->isNotEmpty())
+                    <span class="lu-caps">{{ __('Available') }}</span>
+                    @foreach($available as $name => $badge)
+                        <span class="lu-chip lu-chip-available" wire:key="lu-free-{{ $name }}">
+                            <span class="lu-dot"></span>{{ $tree->people[$name]->firstName() }}@isset($badge['note']) <small>{{ $badge['note'] }}</small>@endisset
+                        </span>
+                    @endforeach
+                @endif
             </section>
         @endif
 
-        <div class="lu-sides">
+        <div class="lu-board">
             @foreach($partners as $index => $partner)
                 @php
                     $teams = $tree->teamsUnder($partner);
@@ -241,73 +215,57 @@
                 <section class="lu-side {{ $index === 0 ? 'lu-a' : 'lu-b' }}" data-drop="under:{{ $partner }}" wire:key="lu-side-{{ $partner }}">
                     <div class="lu-phead">
                         <h2 data-pid="{{ $partner }}">{{ $tree->people[$partner]->displayName() }}</h2>
-                        <div class="lu-caps">{{ __('Partner') }} · {{ $people($tree->countUnder($partner)) }}</div>
-                        @if($direct)
-                            <div class="lu-direct">
-                                <span class="lu-caps">{{ __('Direct') }}</span>
-                                @foreach($direct as $name)
-                                    @include('livewire.team.lineup-who', [...$shared, 'name' => $name])
-                                @endforeach
-                            </div>
-                        @endif
+                        <span class="lu-phead-meta">{{ $people($tree->countUnder($partner)) }}</span>
                     </div>
+                    @if($direct)
+                        <div class="lu-direct">
+                            <span class="lu-caps">{{ __('Direct') }}</span>
+                            @foreach($direct as $name)
+                                @include('livewire.team.lineup-who', [...$shared, 'name' => $name])
+                            @endforeach
+                        </div>
+                    @endif
                     <div class="lu-teams">
                         @forelse($teams as $lead)
                             @php $children = $tree->childrenOf($lead); @endphp
                             <div class="lu-team" data-drop="under:{{ $lead }}" wire:key="lu-team-{{ $lead }}">
-                                <div class="lu-team-head">
-                                    @include('livewire.team.lineup-who', [...$shared, 'name' => $lead, 'extra' => 'lu-lead'])
-                                    <span class="lu-caps">{{ $people($tree->countUnder($lead)) }}</span>
-                                </div>
-                                <ul class="lu-people">
-                                    @forelse($children as $child)
-                                        @include('livewire.team.lineup-branch', [...$shared, 'name' => $child])
-                                    @empty
-                                        <li class="lu-none">{{ __('No one yet.') }} @if($canEdit) {{ __('Drag a name here.') }} @endif</li>
-                                    @endforelse
-                                </ul>
+                                @include('livewire.team.lineup-who', [...$shared, 'name' => $lead, 'extra' => 'lu-lead'])
+                                @forelse($children as $child)
+                                    @include('livewire.team.lineup-branch', [...$shared, 'name' => $child])
+                                @empty
+                                    <span class="lu-slot">{{ __('No one yet') }}</span>
+                                @endforelse
                             </div>
                         @empty
                             <div class="lu-empty">
-                                @if($canEdit)
-                                    {{ __('Drag someone here to put them under :first.', ['first' => $tree->people[$partner]->firstName()]) }}
-                                @else
-                                    {{ __('No one under :first this week.', ['first' => $tree->people[$partner]->firstName()]) }}
-                                @endif
+                                {{ __('No one under :first this week.', ['first' => $tree->people[$partner]->firstName()]) }}
                             </div>
                         @endforelse
                     </div>
                 </section>
             @endforeach
-        </div>
 
-        <section class="lu-tray" data-drop="tray">
-            <div class="lu-tray-head">
-                <span class="lu-caps">{{ $loose ? __('Not placed this week') : __('Everyone is placed') }}</span>
-                <span class="lu-caps">{{ __(':placed of :total placed', ['placed' => $tree->placedCount(), 'total' => $total]) }}</span>
-            </div>
-            @if($loose)
-                <div class="lu-tray-cols">
-                    @foreach(['pm' => __('PMs'), 'tech' => __('Technologists'), 'other' => __('Other')] as $group => $label)
-                        @php $column = array_values(array_filter($loose, fn (string $name) => $tree->people[$name]->group() === $group)); @endphp
+            <section class="lu-tray" data-drop="tray">
+                <div class="lu-tray-head">
+                    <span class="lu-caps">{{ $loose ? __('Not placed') : __('Everyone placed') }}</span>
+                    <span class="lu-caps">{{ $tree->placedCount() }}/{{ $total }}</span>
+                </div>
+                @foreach(['pm' => __('PMs'), 'tech' => __('Technologists'), 'other' => __('Other')] as $group => $label)
+                    @php $column = array_values(array_filter($loose, fn (string $name) => $tree->people[$name]->group() === $group)); @endphp
+                    @if($column)
                         <div class="lu-tray-col" wire:key="lu-tray-{{ $group }}">
                             <span class="lu-caps">{{ $label }} · {{ count($column) }}</span>
-                            @forelse($column as $name)
-                                <span class="lu-tray-item" wire:key="lu-tray-item-{{ $name }}">
-                                    @include('livewire.team.lineup-who', [...$shared, 'name' => $name])
-                                    @if($count = $tree->countUnder($name)) <span class="lu-plus">+{{ $count }}</span> @endif
-                                </span>
-                            @empty
-                                <span class="lu-none">{{ __('None') }}</span>
-                            @endforelse
+                            @foreach($column as $name)
+                                @include('livewire.team.lineup-who', [...$shared, 'name' => $name, 'drop' => false])
+                            @endforeach
                         </div>
-                    @endforeach
-                </div>
-            @endif
-        </section>
+                    @endif
+                @endforeach
+            </section>
+        </div>
 
-        <section class="lu-history">
-            <div class="lu-hist-head"><span class="lu-caps">{{ __('Saved weeks') }}@if($this->history->isNotEmpty()) · {{ $this->history->count() }}@endif</span></div>
+        <details class="lu-history" wire:ignore.self>
+            <summary><span class="lu-caps">{{ __('Saved weeks') }}@if($this->history->isNotEmpty()) · {{ $this->history->count() }}@endif <i class="ph ph-caret-down"></i></span></summary>
             @forelse($this->history as $entry)
                 @php $start = CarbonImmutable::parse($entry['week']); @endphp
                 <button type="button" @class(['lu-hist-row', 'is-on' => $entry['week'] === $week]) wire:click="goToWeek('{{ $entry['week'] }}')" x-on:click="window.scrollTo({ top: 0, behavior: 'smooth' })" wire:key="lu-hist-{{ $entry['week'] }}">
@@ -322,7 +280,7 @@
             @empty
                 <p class="lu-none">{{ __('No weeks saved yet. A week is saved the first time someone moves a name.') }}</p>
             @endforelse
-        </section>
+        </details>
     @endif
 
     <p @class(['lu-status', 'is-bad' => $statusIsError]) role="status">{{ $status }}</p>
@@ -515,7 +473,7 @@
     const focusChain = () => {
         const focus = state.hover || state.selected;
 
-        root.querySelectorAll('.lu-sides .lu-who').forEach((who) => {
+        root.querySelectorAll('.lu-board .lu-who').forEach((who) => {
             const id = who.dataset.id;
 
             who.classList.toggle('lu-dim', !!focus && !(id === focus || isUnder(focus, id) || isUnder(id, focus)));
@@ -625,7 +583,7 @@
         closeMenu();
 
         const current = anchor.classList.contains('lu-badge') ? [...anchor.classList].find((c) => c.startsWith('lu-badge-'))?.slice(9) : null;
-        const currentNote = anchor.querySelector('small')?.textContent ?? '';
+        const currentNote = anchor.dataset.note ?? '';
         const menu = document.createElement('div');
         menu.className = 'lu-picker lu-badge-menu';
         state.menu = menu;
@@ -678,7 +636,7 @@
 
         if (drag?.ghost) {
             drag.ghost.innerHTML = `<b>${esc(person(drag.id)?.name)}</b>${drag.count ? ` <small>+${drag.count}</small>` : ''}`
-                + (target ? ` <span class="lu-arrow">→</span> ${esc(dropLabel(target.dataset.drop))}` : ' <span class="lu-ghost-hint">drop on a name</span>');
+                + (target ? ` <span class="lu-arrow">→</span> ${esc(dropLabel(target.dataset.drop))}` : ' <span class="lu-ghost-hint">drop on a card</span>');
             drag.ghost.classList.toggle('is-armed', !!target);
         }
     };
@@ -794,6 +752,13 @@
     const onPointerCancel = (event) => endDrag(event, true);
 
     const onKeyDown = (event) => {
+        if ((event.key === 'Enter' || event.key === ' ') && event.target.matches?.('.lu-who[data-id]') && root.contains(event.target)) {
+            event.preventDefault();
+            event.target.click();
+
+            return;
+        }
+
         if (event.key === 'Escape' && state.selected) {
             state.selected = null;
             focusChain();

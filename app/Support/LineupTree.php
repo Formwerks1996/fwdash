@@ -22,10 +22,12 @@ class LineupTree
     public const Tray = 'tray';
 
     public const Badges = [
-        'deadline' => ['label' => 'Deadline', 'hint' => 'Up against a deadline, help wanted'],
-        'help' => ['label' => 'Help', 'hint' => 'Could use a hand this week'],
+        'help' => ['label' => 'Needs help', 'hint' => 'Could use a hand this week'],
         'available' => ['label' => 'Available', 'hint' => 'Has time to help others this week'],
     ];
+
+    /** Weeks saved before the deadline badge was dropped read it as "help". */
+    protected const RetiredDeadlineBadge = 'deadline';
 
     /** Guard against a malformed chain when walking up the tree. */
     protected const MaxHops = 40;
@@ -359,6 +361,7 @@ class LineupTree
 
         foreach ($badges ?? [] as $name => $badge) {
             $type = is_array($badge) ? ($badge['type'] ?? null) : null;
+            $type = $type === self::RetiredDeadlineBadge ? 'help' : $type;
 
             if (! $this->has((string) $name) || $this->isPartner((string) $name) || ! is_string($type) || ! isset(self::Badges[$type])) {
                 continue;

@@ -1,6 +1,7 @@
 @php
     use App\Billing\ProjectBurn;
     use App\Livewire\Team\PmDesk;
+    use App\Models\ProjectRole;
     use App\Support\Format;
 
     $me = $this->me;
@@ -28,6 +29,7 @@
             <h1 class="page-title">{{ __('PM Desk') }}</h1>
             <p class="mt-1 max-w-[60ch] text-[0.92rem] text-ink-2">{{ __("One person's week: their team, their projects and how far along each one is.") }}</p>
         </div>
+        @if($canSwitch)
         <label class="grid gap-1">
             <span class="text-xs font-medium tracking-[0.18em] text-muted uppercase">{{ __('Viewing') }}</span>
             <select class="min-w-[15rem] border border-line bg-white px-2 py-1.5 text-[0.92rem]" x-on:change="$wire.switchTo($event.target.value)">
@@ -46,6 +48,7 @@
                 </optgroup>
             </select>
         </label>
+        @endif
     </header>
 
     <section class="grid grid-cols-2 items-end gap-6 min-[900px]:grid-cols-[1.4fr_1fr_1fr_1fr]">
@@ -65,7 +68,9 @@
                 @if($team)
                     {{ collect($team)->map(fn ($name) => $people[$name]->firstName())->implode(', ') }}
                 @else
-                    <a href="{{ route('lineup') }}" class="underline-offset-2 hover:underline" wire:navigate>{{ __('Set in Team Lineup') }}</a>
+                    @can('view office')
+                        <a href="{{ route('lineup') }}" class="underline-offset-2 hover:underline" wire:navigate>{{ __('Set in Team Lineup') }}</a>
+                    @endcan
                 @endif
             </small>
         </div>
@@ -94,7 +99,7 @@
     <section class="grid gap-4">
         <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-gold-line pb-2">
             <h3 class="text-xl">{{ __('Your projects') }}</h3>
-            <span class="{{ $caps }}">{{ __('Assigned to you, tagged to you or your team this week') }}</span>
+            <span class="{{ $caps }}">{{ __('Led or managed by you, assigned to you, or tagged to you or your team this week') }}</span>
         </div>
 
         @if($canEdit)
@@ -137,10 +142,10 @@
                     @endphp
                     <article class="grid content-start gap-3 border border-t-2 p-4 {{ $tint }}" style="border-top-color: {{ $rule }}" wire:key="pd-card-{{ $row['jobNumber'] }}">
                         <div class="flex items-start justify-between gap-4">
-                            <a href="{{ route('projects.show', $row['jobNumber']) }}" class="group min-w-0 text-left" wire:navigate>
+                            <a @if($canOpenProjects) href="{{ route('projects.show', $row['jobNumber']) }}" wire:navigate @endif class="group min-w-0 text-left">
                                 <b class="font-medium text-gold-text">{{ $row['jobNumber'] }}</b>
                                 <span class="text-[1.1rem] decoration-gold underline-offset-[3px] group-hover:underline">{{ $row['jobName'] }}</span>
-                                <i class="ph ph-arrow-up-right text-[0.8rem] text-muted"></i>
+                                @if($canOpenProjects) <i class="ph ph-arrow-up-right text-[0.8rem] text-muted"></i> @endif
                                 <div class="mt-0.5 text-[0.8rem]" style="color: {{ $muted }}">
                                     {{ $row['developer'] ?? '' }}@if($row['developer'] && $row['currentPhase']) · @endif
                                     @if($row['currentPhase']){{ __('now in') }} <b class="font-medium" style="color: {{ $secondary }}">{{ $row['currentPhase'] }}</b>@endif
@@ -150,6 +155,14 @@
                                 <span>{{ __(':hours h last month', ['hours' => Format::number($row['hoursLastMonth'])]) }}</span>
                                 <span style="color: {{ $muted }}">{{ __(':hours h total', ['hours' => Format::number($row['hours'])]) }}</span>
                             </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.82rem]" style="color: {{ $secondary }}">
+                            @if($row['myRole'])
+                                <span class="chip">{{ $row['myRole'] === ProjectRole::Lead ? __('You lead this') : __('You’re the PM') }}</span>
+                            @endif
+                            <span><span style="color: {{ $muted }}">{{ __('Lead') }}</span> {{ $row['leads'] ? collect($row['leads'])->map(fn ($name) => ($people[$name] ?? null)?->firstName() ?? $name)->implode(', ') : '—' }}</span>
+                            <span><span style="color: {{ $muted }}">{{ __('PM') }}</span> {{ $row['pms'] ? collect($row['pms'])->map(fn ($name) => ($people[$name] ?? null)?->firstName() ?? $name)->implode(', ') : '—' }}</span>
                         </div>
 
                         <div class="text-[0.9rem]">

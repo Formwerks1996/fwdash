@@ -104,9 +104,6 @@
                 <i class="ph ph-notebook text-lg"></i>
                 @if($this->allNotes->count()) <span class="text-xs">{{ $this->allNotes->count() }}</span> @endif
             </button>
-            <button type="button" class="flex items-center gap-1.5 rounded-full bg-[#ffe66d] px-4 py-2 text-sm font-medium text-[#5c4d0a] shadow-md hover:bg-[#ffe14d]" x-on:click="startDraft()">
-                <i class="ph ph-note-pencil text-lg"></i>{{ __('Add note') }}
-            </button>
         </div>
     </div>
 
@@ -130,7 +127,7 @@
                         </div>
                     </div>
                 @empty
-                    <p class="text-sm text-muted">{{ __('No notes yet. Use Add note on any page.') }}</p>
+                    <p class="text-sm text-muted">{{ __('No notes yet.') }}</p>
                 @endforelse
             </div>
         </aside>

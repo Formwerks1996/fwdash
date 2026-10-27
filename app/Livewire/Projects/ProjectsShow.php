@@ -13,6 +13,7 @@ use App\Models\MonthEntry;
 use App\Models\Payment;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
+use App\Models\ProjectRole;
 use App\Models\TeamMember;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -207,6 +208,10 @@ class ProjectsShow extends Component
             'canEdit' => auth()->user()->can(Permission::EditBilling->value),
             'canAssign' => auth()->user()->can(Permission::EditTeam->value),
             'assigned' => ProjectAssignment::where('job_number', $this->jobNumber)->orderBy('member_name')->pluck('member_name'),
+            'positions' => ProjectAssignment::where('job_number', $this->jobNumber)->whereNotNull('position')->pluck('position', 'member_name'),
+            'phases' => $this->project->phases()->with('hourBudgets')->get(),
+            'workPlans' => $this->project->workPlans()->with('phase')->get(),
+            'roles' => ProjectRole::byJob([$this->jobNumber])[$this->jobNumber] ?? [ProjectRole::Lead => [], ProjectRole::ProjectManager => []],
             'team' => TeamMember::active()->orderBy('name')->pluck('name'),
             'chart' => $this->chartData(),
         ])->title($this->summary['jobName']);

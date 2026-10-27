@@ -8,7 +8,6 @@
     $isOwn = $this->isOwn;
     $weekStart = $this->weekStart;
     $hours = fn (mixed $value) => (float) $value == 0 ? '' : rtrim(rtrim(number_format((float) $value, 2), '0'), '.');
-    $balance = $totals['total'] - $totals['capacity'];
 @endphp
 
 <div class="space-y-8">
@@ -17,7 +16,7 @@
             <h1 class="page-title">{{ __('Timesheets') }}</h1>
             <p class="page-subtitle">
                 @if($isOwn)
-                    {{ __('Log your hours by project and day. A full day is :hours h.', ['hours' => $hours(TimesheetEntry::DailyCapacity)]) }}
+                    {{ __('Log your hours by project and day: one row for each project, office time or kind of time off.') }}
                 @else
                     {{ __(':name’s week, read-only.', ['name' => $this->person->name]) }}
                 @endif
@@ -44,10 +43,10 @@
 
     <div class="kpis grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <x-kpi :label="__('Week of :date', ['date' => $weekStart->format('j M Y')])" :value="($hours($totals['total']) ?: '0').'<small> h</small>'" dark>
-            {{ __('of :capacity h capacity', ['capacity' => $hours($totals['capacity'])]) }}
+            {{ trans_choice('logged on :count day|logged across :count days', $totals['daysLogged'], ['count' => $totals['daysLogged']]) }}
         </x-kpi>
-        <x-kpi :label="$balance >= 0 ? __('Over capacity') : __('Still to log')" :value="$hours(abs($balance)) ?: '0'" :warn="$balance > 0">
-            {{ $balance == 0 ? __('the week is full') : ($balance > 0 ? __('more than :h h a day', ['h' => $hours(TimesheetEntry::DailyCapacity)]) : __('to reach a full week')) }}
+        <x-kpi :label="__('Office')" :value="$hours($totals['office']) ?: '0'">
+            {{ __('admin, meetings and other non-project time') }}
         </x-kpi>
         <x-kpi :label="__('On projects')" :value="$hours($totals['project']) ?: '0'">
             {{ $totals['total'] ? number_format($totals['project'] / $totals['total'] * 100).'% '.__('of the week') : __('no hours yet') }}
@@ -98,6 +97,24 @@
                     <button type="submit" class="btn" wire:loading.attr="disabled" wire:target="addRow">{{ __('Add row') }}</button>
                 </div>
             </form>
+        </x-modal>
+
+        <x-modal wire:model="confirmingRemove" :title="__('Remove this row?')" max-width="460px">
+            @php($removingRow = $rows->firstWhere('key', $removing))
+            <div class="grid gap-4">
+                <p class="text-sm text-ink-2">
+                    @if($removingRow)
+                        {{ __('This takes :row off your week and deletes its :hours h.', [
+                            'row' => $removingRow['jobName'] ?? $removingRow['category']->label(),
+                            'hours' => $hours($removingRow['total']),
+                        ]) }}
+                    @endif
+                </p>
+                <div class="flex justify-end gap-2 border-t border-line pt-4">
+                    <button type="button" class="btn-secondary" x-on:click="$wire.confirmingRemove = false">{{ __('Cancel') }}</button>
+                    <button type="button" class="btn" wire:click="removeRow(@js($removing))" wire:loading.attr="disabled" wire:target="removeRow">{{ __('Remove row') }}</button>
+                </div>
+            </div>
         </x-modal>
 
         <x-modal wire:model="editingCell" :title="__('Hours and note')" max-width="520px">
@@ -154,13 +171,23 @@
 
         @error('timesheet') <p class="error-note mx-6 mb-3">{{ $message }}</p> @enderror
 
-        <div class="overflow-x-auto">
-            <table class="data-table">
+        <div>
+            <table class="data-table timesheet-grid table-fixed">
+                <colgroup>
+                    <col class="w-[28%]">
+                    @foreach($days as $day)
+                        <col>
+                    @endforeach
+                    <col class="w-[3.75rem]">
+                    @if($isOwn)
+                        <col class="w-8">
+                    @endif
+                </colgroup>
                 <thead>
                     <tr>
                         <th>{{ __('Project') }}</th>
                         @foreach($days as $day)
-                            <th @class(['is-num', 'text-navy' => $day['isToday'], 'opacity-60' => $day['isWeekend']])>
+                            <th @class(['text-center', 'text-navy' => $day['isToday'], 'opacity-60' => $day['isWeekend']])>
                                 {{ $day['label'] }}
                                 <span class="block font-normal normal-case tracking-normal">{{ $day['day'] }}</span>
                             </th>
@@ -174,10 +201,10 @@
                 <tbody>
                     @forelse($rows as $row)
                         <tr wire:key="ts-{{ md5($row['key'].$weekStart) }}">
-                            <td class="max-w-[18rem]">
+                            <td class="whitespace-normal">
                                 @if($row['jobNumber'])
-                                    <span class="block truncate font-medium text-ink">{{ $row['jobName'] }}</span>
-                                    <span class="text-xs text-muted">{{ collect([$row['jobNumber'], $row['phase']])->filter()->join(' · ') }}</span>
+                                    <span class="block truncate font-medium text-ink" title="{{ $row['jobName'] }}">{{ $row['jobName'] }}</span>
+                                    <span class="block truncate text-xs text-muted">{{ collect([$row['jobNumber'], $row['phase']])->filter()->join(' · ') }}</span>
                                 @else
                                     <span class="font-medium text-ink">{{ $row['category']->label() }}</span>
                                     @if($row['category']->isTimeOff())
@@ -187,12 +214,12 @@
                             </td>
                             @foreach($days as $day)
                                 @php($entry = $row['cells'][$day['date']] ?? null)
-                                <td @class(['is-num', 'bg-gold-soft/40' => $day['isToday'], 'bg-[#fafafa]' => $day['isWeekend'] && ! $day['isToday']])>
-                                    <span class="inline-flex items-center">
+                                <td @class(['timesheet-cell', 'bg-gold-soft/40' => $day['isToday'], 'bg-[#fafafa]' => $day['isWeekend'] && ! $day['isToday']])>
+                                    <span class="flex items-center">
                                         <input
                                             type="text"
                                             inputmode="decimal"
-                                            class="cell-input w-14"
+                                            class="cell-input w-full min-w-0 text-center"
                                             placeholder="·"
                                             aria-label="{{ __('Hours on :day', ['day' => $day['label'].' '.$day['day']]) }}"
                                             value="{{ $hours($entry?->hours) }}"
@@ -203,12 +230,12 @@
                                         @if($isOwn)
                                             <button
                                                 type="button"
-                                                @class(['px-0.5 transition-colors', 'text-gold' => $entry?->note, 'text-[#c9cdd1] hover:text-navy' => ! $entry?->note])
+                                                @class(['shrink-0 transition-colors', 'text-gold' => $entry?->note, 'text-[#c9cdd1] hover:text-navy' => ! $entry?->note])
                                                 title="{{ $entry?->note ?: __('Add a note') }}"
                                                 wire:click="editCell(@js($row['key']), '{{ $day['date'] }}')"
                                             ><i @class(['ph text-sm', 'ph-fill ph-note' => $entry?->note, 'ph-note-pencil' => ! $entry?->note])></i></button>
                                         @elseif($entry?->note)
-                                            <i class="ph-fill ph-note px-0.5 text-sm text-gold" title="{{ $entry->note }}"></i>
+                                            <i class="ph-fill ph-note shrink-0 text-sm text-gold" title="{{ $entry->note }}"></i>
                                         @endif
                                     </span>
                                 </td>
@@ -220,8 +247,8 @@
                                         type="button"
                                         class="text-muted transition-colors hover:text-danger"
                                         title="{{ __('Remove row') }}"
-                                        x-data
-                                        x-on:click="if (! {{ $row['total'] ? 'true' : 'false' }} || confirm(@js(__('Remove this row and its :hours h this week?', ['hours' => $hours($row['total'])])))) { $wire.removeRow(@js($row['key'])) }"
+                                        aria-label="{{ __('Remove :row', ['row' => $row['jobName'] ?? $row['category']->label()]) }}"
+                                        wire:click="askToRemoveRow(@js($row['key']))"
                                     ><i class="ph ph-x"></i></button>
                                 </td>
                             @endif
@@ -243,21 +270,11 @@
                         <td>{{ __('Total') }}</td>
                         @foreach($days as $day)
                             @php($dayTotal = $totals['byDay'][$day['date']] ?? 0)
-                            <td class="is-num">
-                                <span @class([
-                                    'text-over' => $dayTotal > TimesheetEntry::DailyCapacity,
-                                    'text-success' => $day['capacity'] > 0 && $dayTotal == $day['capacity'],
-                                    'text-muted' => $dayTotal == 0,
-                                ])>{{ $hours($dayTotal) ?: '0' }}</span>
-                                @if($day['capacity'] > 0)
-                                    <span class="block text-xs font-normal text-muted">/ {{ $hours($day['capacity']) }}</span>
-                                @endif
+                            <td class="text-center tabular-nums">
+                                <span @class(['text-muted' => $dayTotal == 0])>{{ $hours($dayTotal) ?: '0' }}</span>
                             </td>
                         @endforeach
-                        <td class="is-num">
-                            {{ $hours($totals['total']) ?: '0' }}
-                            <span class="block text-xs font-normal text-muted">/ {{ $hours($totals['capacity']) }}</span>
-                        </td>
+                        <td class="is-num">{{ $hours($totals['total']) ?: '0' }}</td>
                         @if($isOwn)
                             <td></td>
                         @endif

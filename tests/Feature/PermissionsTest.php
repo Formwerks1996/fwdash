@@ -2,14 +2,14 @@
 
 use App\Models\User;
 
-it('limits staff to the projects pages', function () {
+it('limits staff to their week, their own projects, their PM Desk and alerts', function () {
     $staff = User::factory()->staff()->create();
 
     $this->actingAs($staff)->get(route('home'))->assertRedirect(route('my-week'));
-    $this->actingAs($staff)->get(route('projects.index'))->assertOk();
     $this->actingAs($staff)->get(route('alerts'))->assertOk();
+    $this->actingAs($staff)->get(route('projects.index'))->assertOk();
 
-    foreach (['overview', 'invoicing', 'software', 'hardware', 'lineup', 'imports.create', 'users'] as $route) {
+    foreach (['project-roles', 'overview', 'invoicing', 'software', 'hardware', 'lineup', 'imports.create', 'users'] as $route) {
         $this->actingAs($staff)->get(route($route))->assertForbidden();
     }
 });
@@ -45,7 +45,8 @@ it('lets an admin preview the dashboard as staff and switch back', function () {
     $this->withSession(['view_as' => 'staff']);
 
     $this->get(route('home'))->assertRedirect(route('my-week'));
-    $this->get(route('projects.index'))->assertOk()->assertSee('View as')->assertDontSee('Add project');
+    $this->get(route('my-week'))->assertOk()->assertSee('View as');
+    $this->get(route('projects.index'))->assertOk()->assertDontSee('See all');
     $this->get(route('overview'))->assertForbidden();
     $this->get(route('users'))->assertForbidden();
 
@@ -57,5 +58,5 @@ it('keeps the view-as toggle to admins', function () {
     $staff = User::factory()->staff()->create();
 
     $this->actingAs($staff)->post(route('viewAs'), ['role' => 'admin'])->assertForbidden();
-    $this->actingAs($staff)->get(route('projects.index'))->assertDontSee('View as');
+    $this->actingAs($staff)->get(route('my-week'))->assertDontSee('View as');
 });

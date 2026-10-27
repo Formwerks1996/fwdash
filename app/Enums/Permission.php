@@ -5,6 +5,7 @@ namespace App\Enums;
 enum Permission: string
 {
     case ViewProjects = 'view projects';
+    case ViewPmDesk = 'view pm desk';
     case ViewOffice = 'view office';
     case ViewAlerts = 'view alerts';
     case ViewFinancials = 'view financials';

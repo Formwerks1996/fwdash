@@ -5,6 +5,7 @@ use App\Livewire\Team\TeamLineup;
 use App\Models\LineupWeek;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
+use App\Models\ProjectRole;
 use App\Models\TeamMember;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -48,4 +49,47 @@ it('says so when the sign-in is not on the roster', function () {
         ->get(route('my-week'))
         ->assertOk()
         ->assertSee('not linked to anyone on the team roster');
+});
+
+it('always lists the active projects someone manages as ongoing, without a lineup tag', function () {
+    Project::create(['job_number' => '#7001', 'job_name' => 'Archive Lane', 'active' => false]);
+    ProjectRole::create(['job_number' => '#8113', 'member_name' => 'Nathan', 'role' => ProjectRole::ProjectManager, 'set_by' => 'test', 'set_at' => now()]);
+    ProjectRole::create(['job_number' => '#8113', 'member_name' => 'Andrew', 'role' => ProjectRole::Lead, 'set_by' => 'test', 'set_at' => now()]);
+    ProjectRole::create(['job_number' => '#7001', 'member_name' => 'Nathan', 'role' => ProjectRole::ProjectManager, 'set_by' => 'test', 'set_at' => now()]);
+
+    $this->actingAs(User::factory()->staff()->create(['email' => 'nathan.test@formwerks.ca']))
+        ->get(route('my-week'))
+        ->assertOk()
+        ->assertSeeInOrder(['Ongoing', 'Oak Street', 'You', 'Andrew Cook'])
+        ->assertDontSee('Archive Lane');
+});
+
+it('shows who needs help and who is available on the community board', function () {
+    LineupWeek::create([
+        'week' => TeamLineup::thisMonday(),
+        'placements' => ['Kendra' => 'Julie'],
+        'tags' => ['Kendra' => '#8113'],
+        'badges' => ['Kendra' => ['type' => 'help', 'note' => 'DP resubmission Thu'], 'Adam' => ['type' => 'available']],
+    ]);
+
+    $this->actingAs(User::factory()->staff()->create(['email' => 'nathan.test@formwerks.ca']))
+        ->get(route('my-week'))
+        ->assertOk()
+        ->assertSeeInOrder(['Community board', 'Needs help', 'Kendra Hoeppner', 'DP resubmission Thu', '#8113 Oak Street', 'Julie VanGrootheest', 'Available', 'Adam Chan']);
+});
+
+it('lets someone put themselves on the board and take themselves off', function () {
+    $this->actingAs(User::factory()->staff()->create(['email' => 'nathan.test@formwerks.ca']));
+
+    Livewire::test(MyWeek::class)
+        ->set('statusNote', 'Free Thursday')
+        ->call('setMyStatus', 'available')
+        ->assertSee('You are listed as available this week.')
+        ->assertSee('Free Thursday');
+
+    expect(LineupWeek::find(TeamLineup::thisMonday())->badges)->toBe(['Nathan' => ['type' => 'available', 'note' => 'Free Thursday']]);
+
+    Livewire::test(MyWeek::class)->call('setMyStatus', null);
+
+    expect(LineupWeek::find(TeamLineup::thisMonday())->badges)->toBe([]);
 });

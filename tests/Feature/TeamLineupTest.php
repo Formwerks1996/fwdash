@@ -4,6 +4,7 @@ use App\Livewire\Team\TeamLineup;
 use App\Models\LineupWeek;
 use App\Models\Project;
 use App\Models\User;
+use App\Support\LineupTree;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -81,13 +82,22 @@ it('tags people with projects from the list only, and badges them', function () 
         ->call('setTag', 'Nathan', '#8113')
         ->call('setTag', 'Kendra', '#9999')
         ->assertSet('status', "Couldn't save: project tags must be projects from the Projects list (not found: #9999)")
-        ->call('setBadge', 'Nathan', 'deadline', 'DP resubmission Thu')
-        ->assertSee('DP resubmission Thu');
+        ->call('setBadge', 'Nathan', 'help', 'DP resubmission Thu')
+        ->assertSee('DP resubmission Thu')
+        ->call('setBadge', 'Kendra', 'deadline', null)
+        ->assertSet('status', "Couldn't save: a badge is either help or available");
 
     $week = LineupWeek::find('2026-10-26');
 
     expect($week->tags)->toBe(['Nathan' => '#8113'])
-        ->and($week->badges)->toBe(['Nathan' => ['type' => 'deadline', 'note' => 'DP resubmission Thu']]);
+        ->and($week->badges)->toBe(['Nathan' => ['type' => 'help', 'note' => 'DP resubmission Thu']]);
+});
+
+it('reads deadline badges saved before it was dropped as needing help', function () {
+    $week = LineupWeek::create(['week' => '2026-10-26', 'placements' => [], 'tags' => [], 'badges' => ['Nathan' => ['type' => 'deadline', 'note' => 'DP Thu']]]);
+
+    expect(LineupTree::forWeek($week)->keepBadges($week->badges))
+        ->toBe(['Nathan' => ['type' => 'help', 'note' => 'DP Thu']]);
 });
 
 it('undoes the last change', function () {

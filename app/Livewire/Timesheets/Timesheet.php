@@ -20,14 +20,14 @@ use Livewire\Component;
 
 /*
  * A person's week, laid out as Mosaic did: a row per project (and phase) or
- * kind of non-project time, a column per day, totals against 7.5 h a day.
+ * kind of non-project time, a column per day, with day and week totals.
  * Everyone edits only their own week; admins can open anyone's to read.
  */
 /**
  * @property-read CarbonImmutable $weekStart
  * @property-read User $person
  * @property-read bool $isOwn
- * @property-read Collection<int, array{date: string, label: string, day: string, capacity: float, isToday: bool, isWeekend: bool}> $days
+ * @property-read Collection<int, array{date: string, label: string, day: string, isToday: bool, isWeekend: bool}> $days
  * @property-read Collection<int, TimesheetEntry> $entries
  * @property-read Collection<int, array<string, mixed>> $rows
  * @property-read array<string, mixed> $totals
@@ -50,6 +50,11 @@ class Timesheet extends Component
     public array $newRow = ['category' => 'project', 'job_number' => '', 'phase_code' => ''];
 
     public bool $editingCell = false;
+
+    public bool $confirmingRemove = false;
+
+    /** The row the remove dialog is asking about. */
+    public string $removing = '';
 
     /** @var array{row: string, date: string, hours: string, note: string} */
     public array $cell = ['row' => '', 'date' => '', 'hours' => '', 'note' => ''];
@@ -85,7 +90,7 @@ class Timesheet extends Component
         return $this->person->is(auth()->user());
     }
 
-    /** @return Collection<int, array{date: string, label: string, day: string, capacity: float, isToday: bool, isWeekend: bool}> */
+    /** @return Collection<int, array{date: string, label: string, day: string, isToday: bool, isWeekend: bool}> */
     #[Computed]
     public function days(): Collection
     {
@@ -96,7 +101,6 @@ class Timesheet extends Component
                 'date' => $day->toDateString(),
                 'label' => $day->format('D'),
                 'day' => $day->format('j M'),
-                'capacity' => $day->isWeekend() ? 0.0 : TimesheetEntry::DailyCapacity,
                 'isToday' => $day->isToday(),
                 'isWeekend' => $day->isWeekend(),
             ];
@@ -161,14 +165,12 @@ class Timesheet extends Component
             ->groupBy(fn (TimesheetEntry $entry) => $entry->work_date->toDateString())
             ->map(fn (Collection $entries) => (float) $entries->sum('hours'));
 
-        $total = (float) $byDay->sum();
-        $capacity = (float) $this->days->sum('capacity');
-
         return [
             'byDay' => $byDay->all(),
-            'total' => $total,
-            'capacity' => $capacity,
+            'total' => (float) $byDay->sum(),
+            'daysLogged' => $byDay->filter()->count(),
             'project' => (float) $this->entries->where('category', TimeCategory::Project)->sum('hours'),
+            'office' => (float) $this->entries->where('category', TimeCategory::Office)->sum('hours'),
             'timeOff' => (float) $this->entries->filter(fn (TimesheetEntry $entry) => $entry->category->isTimeOff())->sum('hours'),
         ];
     }
@@ -270,9 +272,27 @@ class Timesheet extends Component
         unset($this->rows);
     }
 
+    /** A row with hours asks first, in the page rather than a browser confirm() some browsers block. */
+    public function askToRemoveRow(string $rowKey, SaveTimesheetEntryAction $save): void
+    {
+        abort_unless($this->isOwn, 403);
+
+        if ((float) ($this->rows->firstWhere('key', $rowKey)['total'] ?? 0) == 0) {
+            $this->removeRow($rowKey, $save);
+
+            return;
+        }
+
+        $this->removing = $rowKey;
+        $this->confirmingRemove = true;
+    }
+
     public function removeRow(string $rowKey, SaveTimesheetEntryAction $save): void
     {
         abort_unless($this->isOwn, 403);
+
+        $this->confirmingRemove = false;
+        $this->removing = '';
 
         $this->entries
             ->filter(fn (TimesheetEntry $entry) => $entry->rowKey() === $rowKey)

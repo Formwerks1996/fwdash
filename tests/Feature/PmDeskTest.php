@@ -38,7 +38,23 @@ it('opens another person’s desk by name and 404s for strangers', function () {
     $this->get(route('pm-desk', 'Nobody'))->assertNotFound();
 });
 
-it('keeps the desk away from staff', function () {
+it('shows staff their own desk and no one else’s', function () {
+    ProjectAssignment::create(['job_number' => '#8113', 'member_name' => 'Nathan', 'role' => 'member', 'set_by' => 'test', 'set_at' => now()]);
+    TeamMember::where('name', 'Nathan')->update(['email' => 'nathan.test@formwerks.ca']);
+
+    $this->actingAs(User::factory()->staff()->create(['email' => 'nathan.test@formwerks.ca']));
+
+    $this->get(route('pm-desk'))
+        ->assertOk()
+        ->assertSee('Nathan Lam')
+        ->assertSee('Oak Street')
+        ->assertDontSee('Viewing')
+        ->assertSee(route('projects.show', '#8113'));
+    $this->get(route('pm-desk', 'Nathan'))->assertOk();
+    $this->get(route('pm-desk', 'Julie'))->assertForbidden();
+
+    Livewire::test(PmDesk::class)->call('switchTo', 'Julie')->assertForbidden();
+
     $this->actingAs(User::factory()->staff()->create())
         ->get(route('pm-desk'))
         ->assertForbidden();

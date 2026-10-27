@@ -47,6 +47,12 @@ class Project extends Model
         return $this->hasOne(ProjectStatus::class, 'job_number');
     }
 
+    /** @return HasOne<ProjectFinancials, $this> */
+    public function financials(): HasOne
+    {
+        return $this->hasOne(ProjectFinancials::class, 'job_number');
+    }
+
     /** @return HasMany<Payment, $this> */
     public function payments(): HasMany
     {
@@ -57,6 +63,18 @@ class Project extends Model
     public function phaseFees(): HasMany
     {
         return $this->hasMany(ProjectPhaseFee::class, 'job_number');
+    }
+
+    /** @return HasMany<ProjectPhase, $this> */
+    public function phases(): HasMany
+    {
+        return $this->hasMany(ProjectPhase::class, 'job_number')->orderBy('seq');
+    }
+
+    /** @return HasMany<ProjectWorkPlan, $this> */
+    public function workPlans(): HasMany
+    {
+        return $this->hasMany(ProjectWorkPlan::class, 'job_number')->orderBy('start_date');
     }
 
     public static function normalizeJobNumber(string $jobNumber): string

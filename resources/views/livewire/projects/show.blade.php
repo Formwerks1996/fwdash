@@ -1,5 +1,6 @@
 @php
     use App\Enums\Phase;
+    use App\Models\ProjectRole;
     use App\Support\Format;
     use App\Support\RateBand;
 
@@ -23,7 +24,14 @@
                 <div class="mt-3 flex flex-wrap gap-2">
                     @if($s['developer']) <span class="chip">{{ $s['developer'] }}</span> @endif
                     @if($s['division']) <span class="chip">{{ $s['division'] }}</span> @endif
-                    @if($s['lead']) <span class="chip">{{ __('Lead') }} {{ $s['lead'] }}</span> @endif
+                    @forelse($roles[ProjectRole::Lead] as $name)
+                        <span class="chip">{{ __('Lead') }} <a href="{{ route('pm-desk', $name) }}" class="hover:text-navy" wire:navigate>{{ $name }}</a></span>
+                    @empty
+                        @if($s['lead']) <span class="chip">{{ __('Lead') }} {{ $s['lead'] }}</span> @endif
+                    @endforelse
+                    @foreach($roles[ProjectRole::ProjectManager] as $name)
+                        <span class="chip">{{ __('PM') }} <a href="{{ route('pm-desk', $name) }}" class="hover:text-navy" wire:navigate>{{ $name }}</a></span>
+                    @endforeach
                     <span @class(['chip', 'is-on' => $s['active']])>{{ $s['active'] ? __('Active') : __('Inactive in billing') }}</span>
                 </div>
 
@@ -32,6 +40,7 @@
                     @forelse($assigned as $name)
                         <span class="chip">
                             <a href="{{ route('pm-desk', $name) }}" class="hover:text-navy" wire:navigate>{{ $name }}</a>
+                            @if($positions[$name] ?? null) <span class="text-muted">· {{ $positions[$name] }}</span> @endif
                             @if($canAssign)
                                 <button type="button" class="hover:text-danger" wire:click="release(@js($name))" title="{{ __('Take :name off this project', ['name' => $name]) }}"><i class="ph ph-x"></i></button>
                             @endif
@@ -210,6 +219,88 @@
             </table>
         </div>
     </section>
+
+    @if($phases->isNotEmpty() || $workPlans->isNotEmpty())
+        <section class="card p-0">
+            <div class="px-6 pt-5">
+                <h2 class="section-title">{{ __('Phases & hours') }}</h2>
+                <p class="section-note">{{ __('How the job was set up: its phases as the contract names them, the hours budgeted and who is booked on it.') }}</p>
+            </div>
+
+            @if($phases->isNotEmpty())
+                <div class="mt-4 overflow-x-auto">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>{{ __('Phase') }}</th>
+                                <th>{{ __('Bills under') }}</th>
+                                <th>{{ __('Dates') }}</th>
+                                <th class="is-num">{{ __('Fee') }}</th>
+                                <th class="is-num">{{ __('Hours') }}</th>
+                                <th>{{ __('By person') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($phases as $phase)
+                                <tr wire:key="plan-phase-{{ $phase->id }}">
+                                    <td class="font-medium">{{ $phase->name }}</td>
+                                    <td class="text-ink-2">{{ $phase->isHourly() ? __('Hourly') : $phase->billing_code }}</td>
+                                    <td class="text-xs text-ink-2">
+                                        @if($phase->start_date || $phase->end_date)
+                                            {{ $phase->start_date ? Format::date($phase->start_date->format('Y-m-d')) : '…' }} – {{ $phase->end_date ? Format::date($phase->end_date->format('Y-m-d')) : '…' }}
+                                        @else
+                                            <span class="text-muted">—</span>
+                                        @endif
+                                    </td>
+                                    <td class="is-num">{{ $phase->isHourly() ? '—' : Format::money($phase->fee) }}</td>
+                                    <td class="is-num">{{ $phase->estimated_hours !== null ? Format::number($phase->estimated_hours, 1) : '—' }}</td>
+                                    <td class="text-xs text-ink-2">
+                                        {{ $phase->hourBudgets->map(fn ($budget) => $budget->member_name.' '.Format::number($budget->hours, 1))->implode(' · ') ?: '—' }}
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="3" class="font-medium">{{ __('Total') }}</td>
+                                <td class="is-num font-medium">{{ Format::money($phases->reject->isHourly()->sum(fn ($phase) => (float) $phase->fee)) }}</td>
+                                <td class="is-num font-medium">{{ Format::number($phases->sum(fn ($phase) => (float) $phase->estimated_hours), 1) }}</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            @endif
+
+            @if($workPlans->isNotEmpty())
+                <div class="mt-2 overflow-x-auto">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>{{ __('Work plan') }}</th>
+                                <th>{{ __('Phase') }}</th>
+                                <th>{{ __('Dates') }}</th>
+                                <th class="is-num">{{ __('h/day') }}</th>
+                                <th class="is-num">{{ __('Total') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($workPlans as $plan)
+                                <tr wire:key="work-plan-{{ $plan->id }}">
+                                    <td class="font-medium">{{ $plan->member_name }}</td>
+                                    <td class="text-ink-2">{{ $plan->phase?->name ?? __('Whole job') }}</td>
+                                    <td class="text-xs text-ink-2">{{ Format::date($plan->start_date->format('Y-m-d')) }} – {{ Format::date($plan->end_date->format('Y-m-d')) }}</td>
+                                    <td class="is-num">{{ Format::number($plan->daily_hours, 1) }}</td>
+                                    <td class="is-num">{{ Format::number($plan->totalHours(), 1) }} h</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+            <div class="pb-2"></div>
+        </section>
+    @endif
 
     <section class="card p-0">
         <div class="px-6 pt-5">

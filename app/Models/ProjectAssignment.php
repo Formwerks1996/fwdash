@@ -14,13 +14,22 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $job_number
  * @property string $member_name
  * @property string $role
+ * @property ?string $position
  * @property string $set_by
  * @property CarbonImmutable $set_at
  */
-#[Fillable(['job_number', 'member_name', 'role', 'set_by', 'set_at'])]
+#[Fillable(['job_number', 'member_name', 'role', 'position', 'set_by', 'set_at'])]
 class ProjectAssignment extends Model
 {
     public const Roles = ['pm', 'member'];
+
+    /** What people do on a job, as Mosaic's project roles had it. */
+    public const Positions = [
+        'Principal', 'Senior Project Manager', 'Project Manager', 'Technologist',
+        'Senior Interior Designer', 'Interior Designer', 'Senior Landscape Designer',
+        'Intermediate Landscape Designer', 'Landscape Designer', 'Junior Landscape Designer',
+        'Visualization Specialist', 'Planner',
+    ];
 
     public $timestamps = false;
 

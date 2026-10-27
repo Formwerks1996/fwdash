@@ -2,12 +2,13 @@
 
 namespace App\Livewire\Projects;
 
-use App\Actions\Billing\SaveProjectAction;
 use App\Actions\Billing\SetProjectStatusAction;
 use App\Billing\BillingEngine;
 use App\Enums\Permission;
+use App\Enums\Role;
 use App\Livewire\Concerns\SortsRows;
 use App\Models\Project;
+use App\Models\ProjectRole;
 use App\Models\ProjectStatus;
 use App\Support\RateBand;
 use Illuminate\Support\Collection;
@@ -43,25 +44,16 @@ class ProjectsIndex extends Component
     #[Url(as: 'rates')]
     public string $rateScope = 'ongoing';
 
+    /** Managers start on their own projects and can switch to every project. */
+    #[Url(as: 'show')]
+    public string $scope = 'mine';
+
     public string $sort = 'lastActivity';
 
     public string $direction = 'desc';
 
-    public bool $adding = false;
-
-    /** @var array<string, mixed> */
-    public array $form = [
-        'job_number' => '',
-        'job_name' => '',
-        'developer' => '',
-        'division' => '',
-        'project_lead' => '',
-        'ca_per_month' => '',
-        'active' => true,
-    ];
-
     /** @var array<int, string> */
-    protected array $textColumns = ['jobName', 'developer', 'division', 'status'];
+    protected array $textColumns = ['jobName', 'developer', 'division', 'leads', 'pms', 'status'];
 
     /** @return Collection<int, non-empty-array<string, mixed>> */
     #[Computed]
@@ -81,16 +73,19 @@ class ProjectsIndex extends Component
             ->groupBy(fn (array $key) => $key[1])
             ->map(fn (Collection $keys) => $keys->max(fn (array $key) => $key[0]));
 
-        $visible = auth()->user()->visibleJobNumbers();
+        $visible = $this->showsAll() ? null : auth()->user()->ownJobNumbers();
+        $roles = ProjectRole::byJob($visible);
 
         return collect($engine->allSummaries())
             ->when($visible !== null, fn (Collection $rows) => $rows->filter(fn (array $row) => in_array($row['jobNumber'], $visible, true)))
-            ->map(function (array $row) use ($engine, $overrides, $latest, $lastThree, $lastBilled) {
+            ->map(function (array $row) use ($engine, $overrides, $latest, $lastThree, $lastBilled, $roles) {
                 $override = $overrides[$row['jobNumber']] ?? null;
                 $hours = $engine->hoursByPeriod($row['jobNumber']);
 
                 return [
                     ...$row,
+                    'leads' => implode(', ', $roles[$row['jobNumber']][ProjectRole::Lead] ?? []),
+                    'pms' => implode(', ', $roles[$row['jobNumber']][ProjectRole::ProjectManager] ?? []),
                     'status' => $override->status ?? ($row['active'] ? 'active' : 'closed'),
                     'statusOverridden' => (bool) $override,
                     'hoursLatest' => $latest ? ($hours[$latest] ?? null) : null,
@@ -117,7 +112,7 @@ class ProjectsIndex extends Component
             })
             ->when($this->division !== '', fn (Collection $rows) => $rows->where('division', $this->division))
             ->when($search !== '', fn (Collection $rows) => $rows->filter(
-                fn (array $row) => Str::contains(Str::lower(implode(' ', [$row['jobName'], $row['jobNumber'], $row['developer'], $row['lead']])), $search),
+                fn (array $row) => Str::contains(Str::lower(implode(' ', [$row['jobName'], $row['jobNumber'], $row['developer'], $row['lead'], $row['leads'], $row['pms']])), $search),
             ));
 
         return $this->sortRows($rows);
@@ -157,6 +152,23 @@ class ProjectsIndex extends Component
         ];
     }
 
+    /** Admins always see every project; managers may switch to all; staff only ever see their own. */
+    public function showsAll(): bool
+    {
+        return match (auth()->user()->effectiveRole()) {
+            Role::Admin => true,
+            Role::Manager => $this->scope === 'all',
+            Role::Staff => false,
+        };
+    }
+
+    public function setScope(string $scope): void
+    {
+        $this->scope = $scope === 'all' ? 'all' : 'mine';
+
+        unset($this->projects, $this->rows, $this->rates);
+    }
+
     public function setStatus(string $jobNumber, string $status, SetProjectStatusAction $setStatus): void
     {
         $this->authorize(Permission::EditBilling->value);
@@ -168,31 +180,10 @@ class ProjectsIndex extends Component
         unset($this->projects);
     }
 
-    public function addProject(SaveProjectAction $saveProject): void
-    {
-        $this->authorize(Permission::EditBilling->value);
-
-        $validated = $this->validate([
-            'form.job_number' => ['required', 'string', 'max:40'],
-            'form.job_name' => ['required', 'string', 'max:255'],
-            'form.developer' => ['nullable', 'string', 'max:255'],
-            'form.division' => ['nullable', 'string', 'max:20'],
-            'form.project_lead' => ['nullable', 'string', 'max:255'],
-            'form.ca_per_month' => ['nullable', 'numeric', 'min:0'],
-            'form.active' => ['boolean'],
-        ], attributes: [
-            'form.job_number' => __('job number'),
-            'form.job_name' => __('project name'),
-        ])['form'];
-
-        $project = $saveProject->execute($validated);
-
-        $this->redirectRoute('projects.show', $project->job_number, navigate: true);
-    }
-
     public function render(): View
     {
         return view('livewire.projects.index', [
+            'canSwitchScope' => auth()->user()->effectiveRole() === Role::Manager,
             'groups' => self::Groups,
             'divisions' => $this->projects->pluck('division')->filter()->unique()->sort()->values(),
             'statuses' => ProjectStatus::Statuses,

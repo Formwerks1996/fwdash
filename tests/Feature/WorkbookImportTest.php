@@ -1,10 +1,14 @@
 <?php
 
+use App\Actions\Billing\SavePaymentAction;
 use App\Actions\ImportWorkbookAction;
 use App\Billing\BillingEngine;
 use App\Models\AuditLog;
+use App\Models\Payment;
+use App\Models\Project;
 use App\Models\ProjectStatus;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
 use Spatie\SimpleExcel\SimpleExcelWriter;
 
@@ -204,3 +208,35 @@ it('needs the confirmation box ticked', function () {
         ->post(route('imports.store'), ['workbook' => new UploadedFile(makeWorkbook(), 'Dashboard Data.xlsx', null, null, true)])
         ->assertSessionHasErrors('confirm');
 });
+
+it('stores each project\'s financials, tied to the project', function () {
+    app(ImportWorkbookAction::class)->execute(makeWorkbook(), 'Dashboard Data.xlsx');
+
+    $this->assertDatabaseCount('project_financials', 2);
+
+    $alpha = Project::find('#100')->financials;
+
+    expect($alpha->only(['contract', 'billed', 'balance_ca', 'payments_total', 'outstanding', 'consultant_total', 'rate_per_hour']))->toBe([
+        'contract' => '42000.00',
+        'billed' => '17950.00',
+        'balance_ca' => '10500.00',
+        'payments_total' => '8000.00',
+        'outstanding' => '9950.00',
+        'consultant_total' => '80.12',
+        'rate_per_hour' => '119.13',
+    ])
+        ->and($alpha->billed_by_phase['SD'])->toBe('15000.00')
+        ->and($alpha->project->job_name)->toBe('Alpha');
+});
+
+it('re-works a project\'s financials when its billing changes', function () {
+    app(ImportWorkbookAction::class)->execute(makeWorkbook(), 'Dashboard Data.xlsx');
+
+    app(SavePaymentAction::class)->execute('#100', ['paid_on' => '2026-07-15', 'amount' => '950']);
+
+    expect(Project::find('#100')->financials->outstanding)->toBe('9000.00');
+});
+
+it('refuses billing rows for a job that is not a project', function () {
+    Payment::create(['paid_on' => '2026-07-15', 'job_number' => '#999', 'amount' => 100]);
+})->throws(QueryException::class);

@@ -22,10 +22,11 @@ it('lets every role open their timesheet', function (string $role) {
     $this->actingAs($user)->get(route('timesheets'))->assertOk()->assertSee('Timesheets');
 })->with(['admin', 'manager', 'staff']);
 
-it('limits staff to projects and timesheets', function () {
+it('limits staff to their projects, PM Desk and timesheets', function () {
     $staff = User::factory()->staff()->create();
 
     $this->actingAs($staff)->get(route('timesheets'))->assertOk()
+        ->assertSee(route('pm-desk'))
         ->assertSee(route('projects.index'))
         ->assertDontSee(route('overview'));
 
@@ -103,7 +104,7 @@ it('only writes to days in the week shown', function () {
         ->assertStatus(422);
 });
 
-it('shows a week with its rows and totals against capacity', function () {
+it('shows a week with its rows and totals', function () {
     $user = User::factory()->staff()->create();
     TimesheetEntry::factory()->for($user)->forProject('#8016', 'CA')->create(['work_date' => '2026-10-26', 'hours' => 6]);
     TimesheetEntry::factory()->for($user)->create(['work_date' => '2026-10-26', 'hours' => 1.5, 'category' => TimeCategory::Office]);
@@ -113,7 +114,8 @@ it('shows a week with its rows and totals against capacity', function () {
 
     expect($component->get('rows')->pluck('key')->all())->toBe(['project|#8016|CA', 'office||'])
         ->and($component->get('totals')['total'])->toBe(7.5)
-        ->and($component->get('totals')['capacity'])->toBe(37.5)
+        ->and($component->get('totals')['daysLogged'])->toBe(1)
+        ->and($component->get('totals')['office'])->toBe(1.5)
         ->and($component->get('totals')['project'])->toBe(6.0);
 
     $component->assertSee('Seaton')->assertSee('#8016 · CA');
@@ -140,9 +142,25 @@ it('removes a row and its hours for the week', function () {
     TimesheetEntry::factory()->for($user)->forProject('#8016')->count(2)->sequence(['work_date' => '2026-10-26'], ['work_date' => '2026-10-27'])->create();
     TimesheetEntry::factory()->for($user)->forProject('#8016')->create(['work_date' => '2026-10-19']);
 
-    Livewire::actingAs($user)->test(Timesheet::class)->call('removeRow', 'project|#8016|');
+    Livewire::actingAs($user)->test(Timesheet::class)
+        ->call('askToRemoveRow', 'project|#8016|')
+        ->assertSet('confirmingRemove', true)
+        ->assertSee('This takes Seaton off your week')
+        ->call('removeRow', 'project|#8016|')
+        ->assertSet('confirmingRemove', false);
 
     expect(TimesheetEntry::pluck('work_date')->map->toDateString()->all())->toBe(['2026-10-19']);
+});
+
+it('removes a row with no hours without asking', function () {
+    $user = User::factory()->staff()->create();
+
+    Livewire::actingAs($user)->test(Timesheet::class)
+        ->set('newRow', ['category' => 'office', 'job_number' => '', 'phase_code' => ''])
+        ->call('addRow')
+        ->call('askToRemoveRow', 'office||')
+        ->assertSet('confirmingRemove', false)
+        ->assertSet('extraRows', []);
 });
 
 it('lets admins read anyone\'s week but not change it', function () {

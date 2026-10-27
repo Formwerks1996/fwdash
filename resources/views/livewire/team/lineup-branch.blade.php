@@ -1,19 +1,11 @@
-@php
-    $children = $tree->childrenOf($name);
-    $count = $tree->countUnder($name);
-@endphp
-<li data-drop="under:{{ $name }}" wire:key="lu-branch-{{ $name }}">
-    <div class="lu-row">
-        @include('livewire.team.lineup-who', ['name' => $name, 'extra' => $tree->isPm($name) ? 'lu-pmname' : ''])
-        @if($children)
-            <span class="lu-caps">{{ trans_choice(':count person|:count people', $count, ['count' => $count]) }}</span>
-        @endif
-    </div>
+@php $children = $tree->childrenOf($name); @endphp
+<div class="lu-branch" wire:key="lu-branch-{{ $name }}">
+    @include('livewire.team.lineup-who', ['name' => $name])
     @if($children)
-        <ul class="lu-people">
+        <div class="lu-nest">
             @foreach($children as $child)
                 @include('livewire.team.lineup-branch', ['name' => $child])
             @endforeach
-        </ul>
+        </div>
     @endif
-</li>
+</div>

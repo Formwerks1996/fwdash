@@ -17,7 +17,7 @@ class AssignProjectAction
 {
     public function __construct(protected AuditLogger $audit) {}
 
-    public function execute(string $jobNumber, string $memberName, string $role = 'pm'): ?ProjectAssignment
+    public function execute(string $jobNumber, string $memberName, string $role = 'pm', ?string $position = null): ?ProjectAssignment
     {
         if (! Project::whereKey($jobNumber)->exists()) {
             throw ValidationException::withMessages(['assignment' => __('unknown project :job', ['job' => $jobNumber])]);
@@ -35,11 +35,12 @@ class AssignProjectAction
             return null;
         }
 
-        return DB::transaction(function () use ($jobNumber, $memberName, $role) {
+        return DB::transaction(function () use ($jobNumber, $memberName, $role, $position) {
             $assignment = ProjectAssignment::create([
                 'job_number' => $jobNumber,
                 'member_name' => $memberName,
                 'role' => $role,
+                'position' => $position,
                 'set_by' => auth()->user()->name ?? 'system',
                 'set_at' => now(),
             ]);
@@ -48,6 +49,7 @@ class AssignProjectAction
                 'job_number' => $jobNumber,
                 'member_name' => $memberName,
                 'role' => $role,
+                'position' => $position,
             ]);
 
             return $assignment;

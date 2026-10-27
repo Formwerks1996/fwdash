@@ -12,62 +12,22 @@
     <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
             <h1 class="page-title">{{ __('Projects') }}</h1>
-            <p class="page-subtitle">{{ __('Every project with a billing record. Hours come from the uploaded workbook.') }}</p>
+            <p class="page-subtitle">
+                {{ $this->showsAll() ? __('Every project with a billing record. Hours come from the uploaded workbook.') : __('The projects you are assigned to, lead or manage. Hours come from the uploaded workbook.') }}
+            </p>
         </div>
+        @if($canSwitchScope)
+            <div class="seg ml-auto">
+                <button type="button" wire:click="setScope('mine')" @class(['is-active' => $scope !== 'all'])>{{ __('My projects') }}</button>
+                <button type="button" wire:click="setScope('all')" @class(['is-active' => $scope === 'all'])>{{ __('See all') }}</button>
+            </div>
+        @endif
         @if($canEdit)
-            <button type="button" class="btn" x-data x-on:click="$wire.adding = true">
-                <i class="ph ph-plus"></i>{{ __('Add project') }}
-            </button>
+            <a href="{{ route('projects.create') }}" class="btn" wire:navigate>
+                <i class="ph ph-plus"></i>{{ __('New project') }}
+            </a>
         @endif
     </div>
-
-    @if($canEdit)
-        <x-modal wire:model="adding" :title="__('Add project')" max-width="620px">
-            <form wire:submit="addProject" class="grid gap-4 sm:grid-cols-3">
-                <div>
-                    <label class="field-label" for="job_number">{{ __('Job number') }}</label>
-                    <input id="job_number" wire:model="form.job_number" class="field-input" placeholder="#8120">
-                    @error('form.job_number') <p class="error-note mt-1">{{ $message }}</p> @enderror
-                </div>
-                <div class="sm:col-span-2">
-                    <label class="field-label" for="job_name">{{ __('Project name') }}</label>
-                    <input id="job_name" wire:model="form.job_name" class="field-input">
-                    @error('form.job_name') <p class="error-note mt-1">{{ $message }}</p> @enderror
-                </div>
-                <div class="sm:col-span-2">
-                    <label class="field-label" for="developer">{{ __('Developer') }}</label>
-                    <input id="developer" wire:model="form.developer" class="field-input">
-                </div>
-                <div>
-                    <label class="field-label" for="division">{{ __('Division') }}</label>
-                    <input id="division" wire:model="form.division" class="field-input" list="division-options">
-                    <datalist id="division-options">
-                        @foreach($divisions as $option)
-                            <option value="{{ $option }}">
-                        @endforeach
-                    </datalist>
-                </div>
-                <div class="sm:col-span-2">
-                    <label class="field-label" for="project_lead">{{ __('Project lead') }}</label>
-                    <input id="project_lead" wire:model="form.project_lead" class="field-input">
-                </div>
-                <div>
-                    <label class="field-label" for="ca_per_month">{{ __('CA per month') }}</label>
-                    <input id="ca_per_month" type="number" step="0.01" min="0" wire:model="form.ca_per_month" class="field-input" placeholder="0.00">
-                    @error('form.ca_per_month') <p class="error-note mt-1">{{ $message }}</p> @enderror
-                </div>
-                <div class="mt-2 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 sm:col-span-3">
-                    <label class="flex items-center gap-2 text-sm text-ink-2">
-                        <input type="checkbox" wire:model="form.active" class="accent-navy"> {{ __('Active project') }}
-                    </label>
-                    <span class="flex gap-2">
-                        <button type="button" class="btn-secondary" x-on:click="$wire.adding = false">{{ __('Cancel') }}</button>
-                        <button type="submit" class="btn" wire:loading.attr="disabled" wire:target="addProject">{{ __('Add project') }}</button>
-                    </span>
-                </div>
-            </form>
-        </x-modal>
-    @endif
 
     <section class="space-y-4">
         <div class="flex flex-wrap items-center justify-between gap-3">
@@ -122,7 +82,7 @@
         <div class="toolbar px-6 pt-5 pb-4">
             <div class="relative w-full max-w-sm">
                 <i class="ph ph-magnifying-glass absolute top-1/2 left-3 -translate-y-1/2 text-muted"></i>
-                <input type="search" wire:model.live.debounce.250ms="search" placeholder="{{ __('Search project, job #, developer, lead') }}" class="search-input">
+                <input type="search" wire:model.live.debounce.250ms="search" placeholder="{{ __('Search project, job #, developer, lead, PM') }}" class="search-input">
             </div>
             <div class="flex flex-wrap items-center gap-3">
                 <div class="seg">
@@ -147,6 +107,8 @@
                         <x-sort-header column="jobName" :$sort :$direction>{{ __('Project') }}</x-sort-header>
                         <x-sort-header column="developer" :$sort :$direction>{{ __('Developer') }}</x-sort-header>
                         <x-sort-header column="division" :$sort :$direction>{{ __('Div') }}</x-sort-header>
+                        <x-sort-header column="leads" :$sort :$direction>{{ __('Lead') }}</x-sort-header>
+                        <x-sort-header column="pms" :$sort :$direction>{{ __('PM') }}</x-sort-header>
                         <x-sort-header column="status" :$sort :$direction>{{ __('Status') }}</x-sort-header>
                         <x-sort-header column="hoursLatest" :$sort :$direction numeric>{{ __('Hrs, latest month') }}</x-sort-header>
                         <x-sort-header column="hoursRecent" :$sort :$direction numeric>{{ __('Hrs, 3 mo') }}</x-sort-header>
@@ -165,6 +127,8 @@
                             </td>
                             <td class="max-w-[14rem] truncate">{{ $row['developer'] ?? '—' }}</td>
                             <td>{{ $row['division'] ?? '—' }}</td>
+                            <td>{{ $row['leads'] ?: '—' }}</td>
+                            <td>{{ $row['pms'] ?: '—' }}</td>
                             <td>
                                 @if($canEdit)
                                     <flux:dropdown>
@@ -190,7 +154,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="py-10 text-center text-muted">{{ __('No projects match.') }}</td>
+                            <td colspan="12"class="py-10 text-center text-muted">{{ __('No projects match.') }}</td>
                         </tr>
                     @endforelse
                 </tbody>

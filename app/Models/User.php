@@ -55,6 +55,12 @@ class User extends Authenticatable
         return $role === Role::Admin ? null : $role;
     }
 
+    /** The role the dashboard is showing this user as: the previewed one, or their own. */
+    public function effectiveRole(): Role
+    {
+        return $this->previewRole() ?? $this->primaryRole();
+    }
+
     /**
      * Spatie's gate asks this before any other check, so a preview has to
      * answer here or the admin's stored permissions would win.
@@ -93,6 +99,20 @@ class User extends Authenticatable
     }
 
     /**
+     * Job numbers this user leads or manages.
+     *
+     * @return array<int, string>
+     */
+    public function roleJobNumbers(): array
+    {
+        $member = $this->teamMember();
+
+        return $member === null
+            ? []
+            : ProjectRole::where('member_name', $member->name)->pluck('job_number')->unique()->values()->all();
+    }
+
+    /**
      * Job numbers Mosaic has this user on, in any role that has not ended.
      *
      * @return array<int, string>
@@ -109,8 +129,8 @@ class User extends Authenticatable
     }
 
     /**
-     * Job numbers this user may see: null for anyone with financial access,
-     * otherwise their PM Desk assignments plus this week's Team Lineup project.
+     * Job numbers this user may open: null for anyone with financial access,
+     * otherwise only their own.
      *
      * @return ?array<int, string>
      */
@@ -120,6 +140,17 @@ class User extends Authenticatable
             return null;
         }
 
+        return $this->ownJobNumbers();
+    }
+
+    /**
+     * The projects that are this person's own: PM Desk assignments, the ones
+     * they lead or manage, and this week's Team Lineup project.
+     *
+     * @return array<int, string>
+     */
+    public function ownJobNumbers(): array
+    {
         $member = $this->teamMember();
 
         if ($member === null) {
@@ -130,7 +161,7 @@ class User extends Authenticatable
         $lineup = LineupWeek::find(TeamLineup::thisMonday());
         $tagged = LineupTree::forWeek($lineup, $roster)->keepTags($lineup?->tags)[$member->name] ?? null;
 
-        return collect([...$this->assignedJobNumbers(), $tagged])->filter()->unique()->values()->all();
+        return collect([...$this->assignedJobNumbers(), ...$this->roleJobNumbers(), $tagged])->filter()->unique()->values()->all();
     }
 
     public function initials(): string

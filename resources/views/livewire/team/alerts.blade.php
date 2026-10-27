@@ -2,6 +2,8 @@
     use App\Billing\ProjectBurn;
     use App\Support\Format;
 
+    $canOpenProjects = auth()->user()->can('view projects');
+
     $report = $this->report;
     $flags = [
         'over' => ['ph-fill ph-warning-octagon', __('Over budget'), 'bg-[#fbe7e1] text-[#a8432a]', '#c25a3a'],
@@ -116,7 +118,7 @@
                                     $used = (float) $row['used'];
                                     $scale = max(1.2, min($used, 2));
                                     $left = $row['feeHours'] - $row['hours'];
-                                    $url = route('projects.show', $row['jobNumber']);
+                                    $url = ($canOpenProjects ? route('projects.show', $row['jobNumber']) : route('pm-desk'));
                                 @endphp
                                 <tr
                                     wire:key="al-{{ $row['jobNumber'] }}"
@@ -200,7 +202,7 @@
                         </thead>
                         <tbody>
                             @foreach($report['noFee'] as $row)
-                                @php $url = route('projects.show', $row['jobNumber']); @endphp
+                                @php $url = ($canOpenProjects ? route('projects.show', $row['jobNumber']) : route('pm-desk')); @endphp
                                 <tr wire:key="al-nofee-{{ $row['jobNumber'] }}" class="is-link" tabindex="0" x-on:click="Livewire.navigate(@js($url))" x-on:keydown.enter="Livewire.navigate(@js($url))">
                                     <td><b class="font-medium">{{ $row['jobNumber'] }}</b> {{ $row['jobName'] }}</td>
                                     <td class="is-num">{{ Format::number($row['hours']) }} h</td>

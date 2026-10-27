@@ -1,6 +1,7 @@
 @php
     $me = $this->me;
     $projects = $this->projects;
+    $canOpenProjects = auth()->user()->can('view projects');
     $caps = 'text-xs font-medium tracking-[0.18em] text-muted uppercase';
 @endphp
 
@@ -41,7 +42,7 @@
 
         @foreach([
             [__('This week'), __('Your project on the Team Lineup this week'), $projects->where('thisWeek', true), __('Nothing on the lineup for you this week.')],
-            [__('Ongoing'), __('Every project you are assigned to'), $projects->where('assigned', true), __('No projects are assigned to you yet.')],
+            [__('Ongoing'), __('Every project you are assigned to or manage'), $projects->where('assigned', true), __('No projects are assigned to you yet.')],
         ] as [$heading, $note, $rows, $empty])
             <section class="grid gap-4">
                 <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-gold-line pb-2">
@@ -50,7 +51,7 @@
                 </div>
 
                 @forelse($rows as $row)
-                    <a href="{{ route('projects.show', $row['project']->job_number) }}" wire:navigate class="card grid gap-4 transition-colors hover:border-[#c9ced3] sm:grid-cols-[1.6fr_1fr_1fr]">
+                    <a href="{{ $canOpenProjects ? route('projects.show', $row['project']->job_number) : route('pm-desk') }}" wire:navigate class="card grid gap-4 transition-colors hover:border-[#c9ced3] sm:grid-cols-[1.6fr_1fr_1fr]">
                         <div class="min-w-0">
                             <span class="text-xs text-muted tabular-nums">{{ $row['project']->job_number }}</span>
                             <div class="mt-1 truncate text-[1.05rem] text-ink">{{ $row['project']->job_name }}</div>
@@ -60,7 +61,7 @@
                         </div>
                         <div class="grid content-start gap-0.5">
                             <span class="{{ $caps }}">{{ __('PM') }}</span>
-                            <span class="text-sm text-ink">{{ $row['pms'] ? implode(', ', $row['pms']) : '—' }}</span>
+                            <span class="text-sm text-ink">{{ collect($row['managing'] ? [__('You')] : [])->merge($row['pms'])->implode(', ') ?: '—' }}</span>
                             @if($row['with'])
                                 <small class="text-[0.78rem] text-muted">{{ __('with :people', ['people' => implode(', ', $row['with'])]) }}</small>
                             @endif
@@ -76,4 +77,58 @@
             </section>
         @endforeach
     @endif
+
+    @php
+        $board = $this->board;
+        $mine = $me ? collect($board)->map(fn (array $rows) => collect($rows)->firstWhere('name', $me->name))->filter()->keys()->first() : null;
+    @endphp
+    <section class="grid gap-4">
+        <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-gold-line pb-2">
+            <h3 class="text-xl">{{ __('Community board') }}</h3>
+            <span class="{{ $caps }}">{{ __('Who could use a hand, and who has time to give one') }}</span>
+        </div>
+
+        @if($me && ! $me->isPartner())
+            <div class="card flex flex-wrap items-center gap-3 py-3">
+                @if($mine)
+                    <span class="text-sm text-ink-2">
+                        {{ $mine === 'help' ? __('You are asking for help this week.') : __('You are listed as available this week.') }}
+                    </span>
+                    <button type="button" class="btn-secondary" wire:click="setMyStatus(null)">{{ __('Take me off the board') }}</button>
+                @else
+                    <input type="text" wire:model="statusNote" maxlength="80" class="field-input min-w-0 flex-1 sm:max-w-sm" placeholder="{{ __('Note, e.g. DP resubmission Thu') }}" aria-label="{{ __('Note for the board') }}">
+                    <button type="button" class="btn-secondary" style="background: #f6c945; border-color: #e0b42f; color: #3d2f00" wire:click="setMyStatus('help')"><i class="ph ph-hand-waving"></i>{{ __('I need help') }}</button>
+                    <button type="button" class="btn-secondary" style="background: #2e7d4f; border-color: #2e7d4f; color: #fff" wire:click="setMyStatus('available')"><i class="ph ph-hand-heart"></i>{{ __("I'm available") }}</button>
+                @endif
+                @if($statusError) <p class="error-note w-full">{{ $statusError }}</p> @endif
+            </div>
+        @endif
+
+        <div class="grid gap-4 sm:grid-cols-2">
+            @foreach([
+                'help' => [__('Needs help'), '#f6c945', '#fdf8e6', __('No one has asked for help this week.')],
+                'available' => [__('Available'), '#2e7d4f', '#eef6f1', __('No one has marked themselves available yet.')],
+            ] as $type => [$heading, $dot, $tint, $empty])
+                <div class="card grid content-start gap-3" style="background: {{ $tint }}; border-top: 3px solid {{ $dot }}" wire:key="board-{{ $type }}">
+                    <span class="{{ $caps }}">{{ $heading }} · {{ count($board[$type]) }}</span>
+                    @forelse($board[$type] as $row)
+                        <div class="flex items-baseline gap-2.5" wire:key="board-{{ $type }}-{{ $row['name'] }}">
+                            <span class="inline-block shrink-0 rounded-full" style="width: .55rem; height: .55rem; background: {{ $dot }}"></span>
+                            <div class="min-w-0">
+                                <b class="font-medium text-ink">{{ $row['display'] }}</b>
+                                @if($row['note']) <span class="text-sm text-ink-2">· {{ $row['note'] }}</span> @endif
+                                @if($row['project'] || $row['boss'])
+                                    <div class="truncate text-[0.78rem] text-muted">
+                                        @if($row['project']){{ $row['project']->job_number }} {{ $row['project']->job_name }}@endif{{ $row['project'] && $row['boss'] ? ' · ' : '' }}@if($row['boss']){{ __('with :name', ['name' => $row['boss']]) }}@endif
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    @empty
+                        <p class="text-sm text-muted">{{ $empty }}</p>
+                    @endforelse
+                </div>
+            @endforeach
+        </div>
+    </section>
 </div>

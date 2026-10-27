@@ -10,6 +10,7 @@ use App\Models\LineupWeek;
 use App\Models\PmTask;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
+use App\Models\ProjectRole;
 use App\Models\TeamMember;
 use App\Support\LineupTree;
 use Carbon\CarbonImmutable;
@@ -23,8 +24,8 @@ use Livewire\Component;
 /**
  * One person's week: where they sit on this week's lineup, their team, and
  * each of their projects with how far along it is. "Their projects" are the
- * ones assigned to them, the ones they or their team are tagged to this week,
- * and for a partner the active projects they lead.
+ * ones they manage, the ones assigned to them, the ones they or their team
+ * are tagged to this week, and the active projects they lead.
  *
  * @property-read array<string, TeamMember> $people
  * @property-read TeamMember $me
@@ -35,7 +36,7 @@ use Livewire\Component;
  *
  * @phpstan-import-type Burn from ProjectBurn
  *
- * @phpstan-type DeskProject array{burn: Burn, assigned: bool, taggedBy: array<int, string>, hoursLastMonth: float, hoursRecent: float}
+ * @phpstan-type DeskProject array{burn: Burn, assigned: bool, myRole: ?string, leads: array<int, string>, pms: array<int, string>, taggedBy: array<int, string>, hoursLastMonth: float, hoursRecent: float}
  */
 #[Title('PM Desk')]
 class PmDesk extends Component
@@ -52,6 +53,17 @@ class PmDesk extends Component
     public function mount(?string $member = null): void
     {
         $people = $this->people;
+
+        if (! $this->canSwitch()) {
+            $own = auth()->user()->teamMember();
+
+            abort_unless($own !== null && isset($people[$own->name]), 403, __('Your sign-in is not linked to anyone on the team roster yet.'));
+            abort_if($member !== null && $member !== $own->name, 403);
+
+            $this->member = $own->name;
+
+            return;
+        }
 
         if ($member !== null) {
             abort_unless(isset($people[$member]), 404);
@@ -123,19 +135,28 @@ class PmDesk extends Component
             }
         }
 
-        $led = $this->me->isPartner()
-            ? collect($burn->engine()->jobs())
-                ->filter(fn (array $job, string $number) => $job['project_lead'] === $this->member && $burn->effectiveStatus($number) === 'active')
-                ->keys()
-                ->all()
-            : [];
+        $myRoles = ProjectRole::where('member_name', $this->member)->pluck('role', 'job_number')->all();
 
-        return collect([...$assigned, ...array_keys($taggedBy), ...$led])
+        $led = array_keys(array_filter(
+            $myRoles,
+            fn (string $role, string $job) => $role === ProjectRole::Lead && $burn->effectiveStatus($job) === 'active',
+            ARRAY_FILTER_USE_BOTH,
+        ));
+        $managed = array_keys(array_filter($myRoles, fn (string $role) => $role === ProjectRole::ProjectManager));
+
+        $jobs = collect([...$managed, ...$assigned, ...array_keys($taggedBy), ...$led])
             ->unique()
-            ->filter(fn (string $job) => $burn->engine()->job($job) !== null)
+            ->filter(fn (string $job) => $burn->engine()->job($job) !== null);
+
+        $roles = ProjectRole::byJob($jobs->all());
+
+        return $jobs
             ->map(fn (string $job) => [
                 'burn' => $burn->for($job),
                 'assigned' => in_array($job, $assigned, true),
+                'myRole' => in_array($job, $managed, true) ? ProjectRole::ProjectManager : (in_array($job, $led, true) ? ProjectRole::Lead : null),
+                'leads' => $roles[$job][ProjectRole::Lead] ?? [],
+                'pms' => $roles[$job][ProjectRole::ProjectManager] ?? [],
                 'taggedBy' => $taggedBy[$job] ?? [],
                 'hoursLastMonth' => $asOf ? $burn->engine()->hoursIn($job, $asOf) : 0.0,
                 'hoursRecent' => $burn->hoursSince($job, $from),
@@ -164,8 +185,15 @@ class PmDesk extends Component
         return $grouped;
     }
 
+    /** Staff see only their own desk; anyone who sees the firm's figures can open anyone's. */
+    public function canSwitch(): bool
+    {
+        return auth()->user()->can(Permission::ViewFinancials->value);
+    }
+
     public function switchTo(string $name): void
     {
+        abort_unless($this->canSwitch(), 403);
         abort_unless(isset($this->people[$name]), 404);
 
         $this->redirectRoute('pm-desk', $name, navigate: true);
@@ -257,6 +285,8 @@ class PmDesk extends Component
             'asOf' => $burn->asOf(),
             'rate' => $burn->planRate(),
             'canEdit' => auth()->user()->can(Permission::EditTeam->value),
+            'canSwitch' => $this->canSwitch(),
+            'canOpenProjects' => auth()->user()->can(Permission::ViewProjects->value),
             'pms' => collect($this->people)->filter(fn (TeamMember $person) => $person->isPm()),
             'staff' => collect($this->people)->filter(fn (TeamMember $person) => $person->tier === 'staff'),
             'untaggedClaims' => $this->projects->filter(fn (array $row) => ! $row['assigned'] && $row['taggedBy'] !== [])->count(),

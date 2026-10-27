@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Actions\Billing\RefreshProjectFinancialsAction;
 use App\Billing\BillingEngine;
 use App\Imports\DashboardWorkbookImporter;
 use App\Imports\WorkbookReconciler;
@@ -14,6 +15,7 @@ class ImportWorkbookAction
     public function __construct(
         protected AuditLogger $audit,
         protected BillingEngine $engine,
+        protected RefreshProjectFinancialsAction $refreshFinancials,
     ) {}
 
     public function execute(string $path, string $filename, ?User $user = null): WorkbookImport
@@ -21,6 +23,7 @@ class ImportWorkbookAction
         $result = (new DashboardWorkbookImporter($path))->import();
 
         $this->engine->load();
+        $this->refreshFinancials->execute();
 
         $reconciliation = (new WorkbookReconciler($path, $this->engine))->reconcile();
 

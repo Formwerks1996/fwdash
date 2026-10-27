@@ -83,7 +83,7 @@ class UpdateLineupWeekAction
             }
 
             if (! isset(LineupTree::Badges[$type])) {
-                throw ValidationException::withMessages(['lineup' => __('a badge is one of deadline, help, available')]);
+                throw ValidationException::withMessages(['lineup' => __('a badge is either help or available')]);
             }
 
             $note = mb_substr(trim((string) $note), 0, 80);
@@ -146,7 +146,7 @@ class UpdateLineupWeekAction
         }
 
         if (! is_array($snapshot['badges'] ?? [])) {
-            throw ValidationException::withMessages(['lineup' => __('a badge is one of deadline, help, available')]);
+            throw ValidationException::withMessages(['lineup' => __('a badge is either help or available')]);
         }
 
         return $this->write($week, function (LineupTree $tree) use ($snapshot) {
